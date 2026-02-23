@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MacModoro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Enforce true black and high contrast globally */
+      body {
+        background-color: #000000;
+        color: #ffffff;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: "cv11", "ss01", "tnum";
+      }
+      /* Custom slider styling for Webkit */
+      input[type=range] {
+        -webkit-appearance: none;
+        width: 100%;
+        background: transparent;
+      }
+      input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 16px;
+        width: 16px;
+        border-radius: 50%;
+        background: #00ff88;
+        cursor: pointer;
+        margin-top: -6px;
+        box-shadow: 0 0 10px #00ff88;
+      }
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 4px;
+        cursor: pointer;
+        background: #333;
+        border-radius: 2px;
+      }
+      input[type=range]:focus {
+        outline: none;
+      }
+      /* Smooth transitions for readability */
+      .font-tabular {
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Enhanced "Resume" pulse animation */
+      @keyframes resume-pulse {
+        0% { 
+          transform: scale(1); 
+          box-shadow: 0 0 0px rgba(255, 255, 255, 0); 
+          filter: brightness(1);
+        }
+        50% { 
+          transform: scale(1.05); 
+          box-shadow: 0 0 35px rgba(255, 255, 255, 0.4); 
+          filter: brightness(1.1);
+        }
+        100% { 
+          transform: scale(1); 
+          box-shadow: 0 0 0px rgba(255, 255, 255, 0); 
+          filter: brightness(1);
+        }
+      }
+      .animate-resume-pulse {
+        animation: resume-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        will-change: transform, box-shadow;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

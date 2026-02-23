@@ -1,0 +1,5 @@
+{
+  "name": "Pomodoro Timer",
+  "description": "A high-contrast, vanilla-style Pomodoro timer with persistent settings, overflow tracking, and a distraction management modal.",
+  "requestFramePermissions": []
+}

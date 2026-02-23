@@ -1,6 +1,7 @@
 # for_gpt.md - Full Project Source
 
 This file contains the complete source code for the MacModoro project.
+Last updated: 2026-02-23
 
 ## File Tree
 - `package.json`
@@ -118,7 +119,6 @@ export default defineConfig(({ mode }) => {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      /* Enforce true black and high contrast globally */
       body {
         background-color: #000000;
         color: #ffffff;
@@ -127,7 +127,6 @@ export default defineConfig(({ mode }) => {
         -moz-osx-font-smoothing: grayscale;
         font-feature-settings: "cv11", "ss01", "tnum";
       }
-      /* Custom slider styling for Webkit */
       input[type=range] {
         -webkit-appearance: none;
         width: 100%;
@@ -153,28 +152,13 @@ export default defineConfig(({ mode }) => {
       input[type=range]:focus {
         outline: none;
       }
-      /* Smooth transitions for readability */
       .font-tabular {
         font-variant-numeric: tabular-nums;
       }
-
-      /* Enhanced "Resume" pulse animation */
       @keyframes resume-pulse {
-        0% { 
-          transform: scale(1); 
-          box-shadow: 0 0 0px rgba(255, 255, 255, 0); 
-          filter: brightness(1);
-        }
-        50% { 
-          transform: scale(1.05); 
-          box-shadow: 0 0 35px rgba(255, 255, 255, 0.4); 
-          filter: brightness(1.1);
-        }
-        100% { 
-          transform: scale(1); 
-          box-shadow: 0 0 0px rgba(255, 255, 255, 0); 
-          filter: brightness(1);
-        }
+        0% { transform: scale(1); box-shadow: 0 0 0px rgba(255, 255, 255, 0); filter: brightness(1); }
+        50% { transform: scale(1.05); box-shadow: 0 0 35px rgba(255, 255, 255, 0.4); filter: brightness(1.1); }
+        100% { transform: scale(1); box-shadow: 0 0 0px rgba(255, 255, 255, 0); filter: brightness(1); }
       }
       .animate-resume-pulse {
         animation: resume-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
@@ -235,13 +219,9 @@ const TIMELINE_KEY = 'macmodoro_timeline';
 const HISTORY_KEY = 'macmodoro_history';
 
 export default function App() {
-  // --- State ---
   const [sessionName, setSessionName] = useState('');
-  
-  // Settings
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
-  // Timer State
   const [timerState, setTimerState] = useState<TimerState>({
     phase: Phase.FOCUS,
     isRunning: false,
@@ -250,11 +230,9 @@ export default function App() {
     cycleCount: 0,
   });
 
-  // Derived display state
   const [displayTime, setDisplayTime] = useState(DEFAULT_SETTINGS.focusDuration * 60 * 1000);
   const [isOverflowing, setIsOverflowing] = useState(false);
 
-  // Timeline State
   const [segments, setSegments] = useState<TimelineSegment[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -265,7 +243,6 @@ export default function App() {
     return [];
   });
 
-  // History State
   const [history, setHistory] = useState<HistoryEntry[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -276,22 +253,14 @@ export default function App() {
     return [];
   });
 
-  // Current elapsed
   const [currentSegmentElapsed, setCurrentSegmentElapsed] = useState(0);
-
-  // UI State
   const [isDistractionModalOpen, setIsDistractionModalOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
-  // Audio Ref
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  
-  // Change Detection Refs for Smart Reset
   const prevSettingsRef = useRef(settings);
   const prevPhaseRef = useRef(timerState.phase);
-
-  // --- Initialization & Persistence ---
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -324,10 +293,10 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       settings,
       sessionName,
-      timerState: { 
-        phase: timerState.phase, 
+      timerState: {
+        phase: timerState.phase,
         cycleCount: timerState.cycleCount,
-        remainingTimeAtPause: timerState.remainingTimeAtPause 
+        remainingTimeAtPause: timerState.remainingTimeAtPause
       }
     }));
   }, [settings, sessionName, timerState]);
@@ -340,7 +309,6 @@ export default function App() {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   }, [history]);
 
-  // Helper to get duration
   const getDurationForPhase = useCallback((phase: Phase): number => {
     switch (phase) {
       case Phase.FOCUS: return settings.focusDuration;
@@ -349,7 +317,6 @@ export default function App() {
     }
   }, [settings]);
 
-  // SMART RESET EFFECT (Settings/Phase change)
   useEffect(() => {
     const settingsChanged = prevSettingsRef.current !== settings;
     const phaseChanged = prevPhaseRef.current !== timerState.phase;
@@ -368,7 +335,6 @@ export default function App() {
     }
   }, [settings, timerState.phase, timerState.isRunning, getDurationForPhase]);
 
-
   const playSound = useCallback(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio(DING_B64);
@@ -377,8 +343,6 @@ export default function App() {
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(e => console.warn("Audio play failed", e));
   }, [settings.volume]);
-
-  // --- Timer Tick ---
 
   useEffect(() => {
     let animationFrameId: number;
@@ -409,8 +373,6 @@ export default function App() {
     return () => cancelAnimationFrame(animationFrameId);
   }, [timerState.isRunning, timerState.startTime, timerState.remainingTimeAtPause, timerState.phase, getDurationForPhase]);
 
-
-  // Sound trigger
   const hasPlayedSoundRef = useRef(false);
   useEffect(() => {
     if (displayTime <= 0 && !hasPlayedSoundRef.current && timerState.isRunning) {
@@ -422,10 +384,8 @@ export default function App() {
     }
   }, [displayTime, playSound, timerState.isRunning]);
 
-
-  // --- Helper to Commit Segment ---
   const commitSegment = (status: 'completed' | 'interrupted') => {
-    if (currentSegmentElapsed > 1000) { 
+    if (currentSegmentElapsed > 1000) {
         const newSegment: TimelineSegment = {
             id: Date.now().toString(),
             type: timerState.phase,
@@ -438,16 +398,11 @@ export default function App() {
     setCurrentSegmentElapsed(0);
   };
 
-
-  // --- Actions ---
-
   const toggleTimer = useCallback(() => {
     if (timerState.isRunning) {
-      // PAUSE
       const now = Date.now();
       const elapsed = now - (timerState.startTime || now);
       const newRemaining = (timerState.remainingTimeAtPause || 0) - elapsed;
-      
       setTimerState(prev => ({
         ...prev,
         isRunning: false,
@@ -455,7 +410,6 @@ export default function App() {
         remainingTimeAtPause: newRemaining
       }));
     } else {
-      // START
       setTimerState(prev => ({
         ...prev,
         isRunning: true,
@@ -464,12 +418,10 @@ export default function App() {
     }
   }, [timerState.isRunning, timerState.startTime, timerState.remainingTimeAtPause]);
 
-  // "Restart Session" - Soft Reset (keeps timeline, cycle, phase)
   const restartCurrentSession = useCallback(() => {
     if (currentSegmentElapsed > 0) {
         commitSegment('interrupted');
     }
-
     const duration = getDurationForPhase(timerState.phase) * 60 * 1000;
     setTimerState(prev => ({
       ...prev,
@@ -483,48 +435,34 @@ export default function App() {
     setCurrentSegmentElapsed(0);
   }, [getDurationForPhase, timerState.phase, currentSegmentElapsed]);
 
-  // "Hard Reset" -> "Stop Session" logic
   const handleResetClick = () => {
     setIsResetConfirmOpen(true);
   };
 
   const confirmFullReset = useCallback(() => {
-      // 1. Snapshot currently running segment info
       const finalSegments = [...segments];
-      
-      // If there is an active/paused segment that hasn't been committed yet, add it now.
       if (currentSegmentElapsed > 1000) {
           finalSegments.push({
             id: 'end-' + Date.now(),
             type: timerState.phase,
             duration: currentSegmentElapsed,
-            status: 'completed', // Treated as completed/ended part of session
+            status: 'completed',
             timestamp: Date.now()
           });
       }
-
-      // 2. Calculate Total Focus Time from the FINAL snapshot
       const totalFocusMs = finalSegments.reduce((acc, s) => s.type === Phase.FOCUS ? acc + s.duration : acc, 0);
-      
-      // 3. Save to History if valid (> 5 seconds of focus)
-      // We accept > 5s to allow for easy testing, though functionally meaningful might be 1m.
       if (totalFocusMs > 5000) {
           const totalMinutes = Math.max(1, Math.round(totalFocusMs / 60000));
-          
           const newEntry: HistoryEntry = {
               id: Date.now().toString(),
               name: sessionName || 'Untitled Session',
               timestamp: Date.now(),
               duration: totalMinutes,
-              segments: finalSegments // Save the complete timeline
+              segments: finalSegments
           };
           setHistory(prev => [newEntry, ...prev]);
       }
-
-      // Clear Timeline
       setSegments([]);
-      
-      // Reset State to Defaults (Focus Phase, Cycle 0)
       const duration = settings.focusDuration * 60 * 1000;
       setTimerState({
           phase: Phase.FOCUS,
@@ -540,30 +478,20 @@ export default function App() {
       setIsResetConfirmOpen(false);
   }, [settings.focusDuration, segments, currentSegmentElapsed, sessionName, timerState.phase]);
 
-
-  // Shared logic to proceed to the next phase (used by Modal and 'Next Phase' button)
   const proceedToNextPhase = useCallback(() => {
     setIsDistractionModalOpen(false);
-    
-    // Logic: 
-    // 1. If overflowing, it's completed (natural end).
-    // 2. If it is NOT a focus phase (i.e., it's a break), skipping it is also "completed" (user chooses to work).
-    // 3. If it IS focus phase and time remains, it's "interrupted".
     const isFocus = timerState.phase === Phase.FOCUS;
     const isNaturalEnd = isOverflowing || displayTime <= 0;
-    
     const status = (isNaturalEnd || !isFocus) ? 'completed' : 'interrupted';
-    
     commitSegment(status);
 
-    // Cycle Logic
     let nextPhase = Phase.FOCUS;
     let nextCycle = timerState.cycleCount;
 
     if (timerState.phase === Phase.FOCUS) {
       if (timerState.cycleCount >= 3) {
         nextPhase = Phase.LONG_BREAK;
-        nextCycle = 0; 
+        nextCycle = 0;
       } else {
         nextPhase = Phase.SHORT_BREAK;
         nextCycle = timerState.cycleCount + 1;
@@ -575,8 +503,8 @@ export default function App() {
       }
     }
 
-    const nextDur = (nextPhase === Phase.SHORT_BREAK ? settings.shortBreakDuration : 
-                     nextPhase === Phase.LONG_BREAK ? settings.longBreakDuration : 
+    const nextDur = (nextPhase === Phase.SHORT_BREAK ? settings.shortBreakDuration :
+                     nextPhase === Phase.LONG_BREAK ? settings.longBreakDuration :
                      settings.focusDuration);
 
     setTimerState({
@@ -592,22 +520,15 @@ export default function App() {
     setCurrentSegmentElapsed(0);
   }, [timerState.phase, timerState.cycleCount, isOverflowing, displayTime, currentSegmentElapsed, settings]);
 
-
   const handleStopNext = useCallback(() => {
-    // If overflowing, we skip the modal and go straight to next phase
     if (isOverflowing) {
         proceedToNextPhase();
         return;
-    } 
-    
-    // If we are in a BREAK phase, "Stop/Next" just means "Start Focus" (Next Phase).
-    // No need for a distraction modal.
+    }
     if (timerState.phase !== Phase.FOCUS) {
         proceedToNextPhase();
         return;
     }
-
-    // Otherwise (Focus phase, not overflowing), pause and ask via modal
     setTimerState(prev => {
         if (!prev.isRunning) return prev;
         const now = Date.now();
@@ -620,22 +541,17 @@ export default function App() {
         };
     });
     setIsDistractionModalOpen(true);
-    
   }, [isOverflowing, proceedToNextPhase, timerState.phase]);
-
-  // --- Modal Actions ---
 
   const handleModalRestart = () => {
     setIsDistractionModalOpen(false);
-    restartCurrentSession(); 
+    restartCurrentSession();
   };
 
   const handleModalClose = () => {
     setIsDistractionModalOpen(false);
-    // Closed means stayed paused.
   };
 
-  // --- History Actions ---
   const handleDeleteHistory = (id: string) => {
     setHistory(prev => prev.filter(h => h.id !== id));
   };
@@ -645,11 +561,9 @@ export default function App() {
     setIsHistoryModalOpen(false);
   };
 
-  // --- Keyboard Shortcuts ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName || '')) return;
-
       switch(e.code) {
         case 'Space':
           e.preventDefault();
@@ -667,17 +581,14 @@ export default function App() {
           break;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleTimer, handleStopNext, isDistractionModalOpen, isResetConfirmOpen, isHistoryModalOpen, isOverflowing]);
 
-  // --- Logic to check if session has started ---
   const hasStarted = displayTime < getDurationForPhase(timerState.phase) * 60 * 1000;
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 selection:bg-[#00ff88] selection:text-black">
-      {/* Header */}
       <header className="w-full max-w-md flex justify-center mb-10 relative">
         <input
           id="sessionName"
@@ -689,42 +600,36 @@ export default function App() {
         />
       </header>
 
-      {/* Settings Row */}
       <SettingsPanel settings={settings} setSettings={setSettings} />
 
-      {/* Timer Display */}
       <main className="flex-1 flex flex-col items-center justify-center w-full relative">
         <div className="mb-6 text-gray-500 font-bold tracking-[0.2em] uppercase text-xs">
             {timerState.phase === Phase.FOCUS ? `Focus Cycle ${timerState.cycleCount + 1}/4` : 'Break Time'}
         </div>
         <TimerDisplay ms={displayTime} isOverflowing={isOverflowing} phase={timerState.phase} />
-        
-        {/* Shortcuts Hint */}
         <div className="absolute bottom-[-2rem] text-[10px] text-gray-700 uppercase font-bold tracking-[0.3em] pointer-events-none opacity-40">
           [Space] {isOverflowing ? 'Next' : 'Toggle'} · [R] End · [Esc] Menu
         </div>
       </main>
 
-      {/* Controls */}
-      <Controls 
-        isRunning={timerState.isRunning} 
+      <Controls
+        isRunning={timerState.isRunning}
         isOverflowing={isOverflowing}
         hasStarted={hasStarted}
         phase={timerState.phase}
-        onToggle={toggleTimer} 
-        onReset={handleResetClick} 
-        onStopNext={handleStopNext} 
+        onToggle={toggleTimer}
+        onReset={handleResetClick}
+        onStopNext={handleStopNext}
       />
 
-      {/* Timeline */}
-      <Timeline 
-        segments={segments} 
-        currentPhase={timerState.phase} 
+      <Timeline
+        segments={segments}
+        currentPhase={timerState.phase}
         currentDuration={currentSegmentElapsed}
         isRunning={timerState.isRunning}
+        totalPhaseDuration={getDurationForPhase(timerState.phase) * 60 * 1000}
       />
 
-      {/* Footer: Volume & History */}
       <footer className="w-full max-w-md mt-12 mb-6 flex flex-col gap-8">
         <div className="flex items-center gap-5 text-gray-500 justify-center w-full max-w-xs mx-auto">
           <span className="text-[10px] font-bold uppercase tracking-widest w-10">Bell</span>
@@ -737,7 +642,7 @@ export default function App() {
             onChange={(e) => setSettings({ ...settings, volume: parseInt(e.target.value) })}
             className="flex-1"
           />
-          <button 
+          <button
             onClick={playSound}
             title="Preview Sound"
             className="w-10 h-10 rounded-full border border-[#222] flex items-center justify-center text-[#00ff88] hover:bg-[#111] hover:border-[#333] active:scale-95 transition-all"
@@ -745,9 +650,8 @@ export default function App() {
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
           </button>
         </div>
-        
         <div className="flex justify-center">
-            <button 
+            <button
                 onClick={() => setIsHistoryModalOpen(true)}
                 className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.25em] text-gray-600 hover:text-white transition-colors group"
             >
@@ -757,18 +661,16 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Distraction Modal */}
       {isDistractionModalOpen && (
-        <Modal 
-          onRestart={handleModalRestart} 
-          onTakeBreak={proceedToNextPhase} 
-          onClose={handleModalClose} 
+        <Modal
+          onRestart={handleModalRestart}
+          onTakeBreak={proceedToNextPhase}
+          onClose={handleModalClose}
         />
       )}
 
-      {/* History Modal */}
       {isHistoryModalOpen && (
-        <HistoryModal 
+        <HistoryModal
             history={history}
             onClose={() => setIsHistoryModalOpen(false)}
             onDelete={handleDeleteHistory}
@@ -776,20 +678,19 @@ export default function App() {
         />
       )}
 
-      {/* Stop/Reset Confirmation Modal */}
       {isResetConfirmOpen && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-[#111] border border-red-900/40 p-8 rounded-3xl shadow-2xl w-full max-w-xs text-center border-t-red-600">
             <h3 className="text-xl font-extrabold text-white mb-3 tracking-tight">Stop Session?</h3>
             <p className="text-sm text-gray-500 mb-8 font-medium leading-relaxed">This will save your progress to history and reset the timers.</p>
             <div className="flex flex-col gap-3">
-               <button 
+               <button
                  onClick={confirmFullReset}
                  className="w-full py-3.5 rounded-full bg-red-600 text-white hover:bg-red-500 text-[11px] font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(220,38,38,0.3)]"
                >
                  End & Save
                </button>
-               <button 
+               <button
                  onClick={() => setIsResetConfirmOpen(false)}
                  className="w-full py-3.5 rounded-full border border-[#222] text-gray-400 hover:text-white hover:bg-white/5 text-[11px] font-bold uppercase tracking-widest"
                >
@@ -822,16 +723,16 @@ export interface Settings {
 export interface TimerState {
   phase: Phase;
   isRunning: boolean;
-  startTime: number | null; // Timestamp when timer started/resumed
-  remainingTimeAtPause: number | null; // Milliseconds remaining when paused
-  cycleCount: number; // To track 4x focus cycles
+  startTime: number | null;
+  remainingTimeAtPause: number | null;
+  cycleCount: number;
 }
 
 export interface TimelineSegment {
   id: string;
   type: Phase;
-  duration: number; // ms spent in this segment
-  status: 'completed' | 'interrupted' | 'ongoing'; // ongoing is used for live rendering
+  duration: number;
+  status: 'completed' | 'interrupted' | 'ongoing';
   timestamp: number;
 }
 
@@ -855,12 +756,8 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: 50,
 };
 
-// Longer alarm sound (simulated repetitive beep)
-export const ALARM_SOUND_BASE64 = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"; // Kept short for prompt limits, but representing the resource.
+export const ALARM_SOUND_BASE64 = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU";
 
-// Using a slightly longer sequence for the alarm to resemble a clock
-// Ideally this would be a real file, but for a single file React app without assets, we use a generated string.
-// This is a placeholder for a 1-second alarm beep.
 export const DING_B64 = "data:audio/wav;base64,UklGRqRwAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YYBwAACBhYqFbF1fdJivrJBhNjVgodDbqWEzM2CfutvnrmE0M1+ZtuHirGM1NFyXuODlsWQ2NVqTt+LmtWg3NViRtOLnuGk4NFePs+LovGw5NFWOsePpvm06NFSMsOPqwG47NFOMr+TrwnA8NVKMrOTsxXI9NVCKp+TtxnM+NU+KpeXuyHU/NU6JpObvyXY/NU2Ioebwyng/NUyHn+fxy3lANUuGm+fyzHpBNUqFmObzzXtCNUmEluX0znxDNUiDleT10H1ENUd/k+T20X5FNUZ+keP30n9GNUV9j+L41IBHNUQVAAA=";
 
 export const PHASE_LABELS: Record<Phase, string> = {
@@ -885,81 +782,39 @@ interface ControlsProps {
   onStopNext: () => void;
 }
 
-export const Controls: React.FC<ControlsProps> = ({ 
-  isRunning, 
-  isOverflowing, 
-  hasStarted,
-  phase, 
-  onToggle, 
-  onReset, 
-  onStopNext 
+export const Controls: React.FC<ControlsProps> = ({
+  isRunning, isOverflowing, hasStarted, phase, onToggle, onReset, onStopNext
 }) => {
   const btnBase = "px-10 py-3.5 rounded-full border transition-all text-sm font-bold tracking-widest uppercase min-w-[140px] active:scale-95";
-  
   const defaultBtnClass = `${btnBase} border-[#333] text-white hover:border-white hover:bg-white/5`;
-  
-  // Start: White filled, high contrast black text (Static)
   const startBtnClass = `${btnBase} bg-white text-black border-white hover:bg-gray-200`;
-
-  // Resume: Same as Start but with pulsating animation
   const resumeBtnClass = `${btnBase} bg-white text-black border-white hover:bg-gray-200 animate-resume-pulse`;
-  
-  // Pause: Red border with subtle glow
   const pauseBtnClass = `${btnBase} bg-red-950/20 text-red-500 border-red-600/50 hover:bg-red-900/40 hover:border-red-500 hover:text-red-400 shadow-[0_0_20px_rgba(220,38,38,0.1)]`;
-
   const overflowBtnClass = `${btnBase} bg-red-600 text-white border-red-500 hover:bg-red-500 animate-pulse shadow-[0_0_25px_rgba(220,38,38,0.3)]`;
-
   const resetBtnClass = "mt-6 text-[11px] text-gray-500 hover:text-red-500 uppercase font-bold tracking-[0.25em] transition-colors border-b border-transparent hover:border-red-500/50 pb-1";
 
-  // Logic for the Stop/Next button label
   let mainActionLabel = 'Stop';
-  if (isOverflowing) {
-    mainActionLabel = 'Next Phase';
-  } else if (phase !== Phase.FOCUS) {
-    mainActionLabel = 'Next Phase';
-  }
+  if (isOverflowing || phase !== Phase.FOCUS) mainActionLabel = 'Next Phase';
 
-  // Determine button style based on state
   let toggleBtnClass = startBtnClass;
-  if (isRunning) {
-    toggleBtnClass = pauseBtnClass;
-  } else if (hasStarted) {
-    toggleBtnClass = resumeBtnClass;
-  }
+  if (isRunning) toggleBtnClass = pauseBtnClass;
+  else if (hasStarted) toggleBtnClass = resumeBtnClass;
 
   return (
     <div className="flex flex-col items-center mt-12 w-full">
-      
-      {/* Main Control Row */}
       <div className="flex flex-wrap gap-5 justify-center">
         {!isOverflowing && (
-          <button 
-            id="startPause" 
-            onClick={onToggle} 
-            className={toggleBtnClass}
-          >
+          <button id="startPause" onClick={onToggle} className={toggleBtnClass}>
             {isRunning ? 'Pause' : (hasStarted ? 'Resume' : 'Start')}
           </button>
         )}
-
-        <button 
-          id="stopNext" 
-          onClick={onStopNext} 
-          className={isOverflowing ? overflowBtnClass : defaultBtnClass}
-        >
+        <button id="stopNext" onClick={onStopNext} className={isOverflowing ? overflowBtnClass : defaultBtnClass}>
           {mainActionLabel}
         </button>
       </div>
-
-      {/* Secondary Reset Row */}
-      <button 
-        id="reset" 
-        onClick={onReset} 
-        className={resetBtnClass}
-      >
+      <button id="reset" onClick={onReset} className={resetBtnClass}>
         Stop Session
       </button>
-
     </div>
   );
 };
@@ -988,24 +843,19 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-[#0a0a0a] border border-[#222] w-full max-w-md h-[70vh] flex flex-col rounded-2xl shadow-2xl relative overflow-hidden">
-        
-        {/* Header */}
+
         <div className="flex justify-between items-center p-6 border-b border-[#222] bg-[#0a0a0a]">
           <h2 className="text-xl font-bold text-white tracking-tight">Session History</h2>
-          <button 
-            onClick={onClose} 
-            className="text-gray-500 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#222]"
-          >
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#222]">
              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-[#333] scrollbar-track-transparent">
            {history.length === 0 && (
              <div className="flex flex-col items-center justify-center h-full text-gray-600 gap-4">
@@ -1016,7 +866,6 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
            {history.map(entry => {
               const hasTimeline = entry.segments && entry.segments.length > 0;
               const isExpanded = expandedId === entry.id;
-
               return (
                 <div key={entry.id} className="bg-[#111] rounded-lg border border-[#222] overflow-hidden transition-all duration-300">
                   <div className="group flex justify-between items-center p-4 hover:bg-[#161616] relative">
@@ -1031,10 +880,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                             <span className="font-mono text-[#00ff88] text-lg font-bold block leading-none">{entry.duration}</span>
                             <span className="text-[9px] text-gray-600 uppercase tracking-widest block text-right">min</span>
                           </div>
-                          
-                          {/* Timeline Toggle Button */}
                           {hasTimeline && (
-                             <button 
+                             <button
                                onClick={() => toggleExpand(entry.id)}
                                className={`w-8 h-8 flex items-center justify-center rounded transition-all ${isExpanded ? 'text-[#00ff88] bg-[#00ff88]/10' : 'text-gray-600 hover:text-white hover:bg-[#222]'}`}
                                title="View Timeline"
@@ -1042,10 +889,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                              </button>
                           )}
-
-                          {/* Delete Button */}
-                          <button 
-                            onClick={() => setDeleteId(entry.id)} 
+                          <button
+                            onClick={() => setDeleteId(entry.id)}
                             className="w-8 h-8 flex items-center justify-center rounded text-gray-600 hover:text-red-500 hover:bg-[#222] transition-colors"
                             title="Delete Entry"
                           >
@@ -1053,15 +898,14 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                           </button>
                       </div>
                   </div>
-
-                  {/* Expanded Timeline View */}
                   {isExpanded && hasTimeline && (
                     <div className="border-t border-[#222] bg-[#050505] p-4 animate-in fade-in slide-in-from-top-1">
-                       <Timeline 
-                          segments={entry.segments} 
-                          currentPhase={Phase.FOCUS} // Irrelevant for static view
-                          currentDuration={0} 
+                       <Timeline
+                          segments={entry.segments}
+                          currentPhase={Phase.FOCUS}
+                          currentDuration={0}
                           isRunning={false}
+                          totalPhaseDuration={0}
                        />
                     </div>
                   )}
@@ -1070,11 +914,10 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
            })}
         </div>
 
-        {/* Footer */}
         {history.length > 0 && (
             <div className="p-4 border-t border-[#222] bg-[#0a0a0a]">
-                <button 
-                  onClick={() => setIsClearAllConfirm(true)} 
+                <button
+                  onClick={() => setIsClearAllConfirm(true)}
                   className="w-full py-3 rounded border border-red-900/30 text-red-700 hover:bg-red-900/10 hover:border-red-800 hover:text-red-500 text-xs font-bold uppercase tracking-widest transition-all"
                 >
                     Clear All History
@@ -1082,7 +925,6 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
             </div>
         )}
 
-        {/* Delete Confirmation Overlay (Individual) */}
         {deleteId && (
             <div className="absolute inset-0 bg-black/95 flex items-center justify-center z-20 flex-col p-8 text-center animate-in fade-in duration-200">
                 <div className="w-12 h-12 rounded-full bg-red-900/20 text-red-500 flex items-center justify-center mb-4 border border-red-900/50">
@@ -1091,40 +933,19 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                 <h3 className="text-white font-bold text-lg mb-2">Delete this entry?</h3>
                 <p className="text-gray-500 text-sm mb-6 max-w-[200px] mx-auto leading-relaxed">This record will be permanently removed from your local history.</p>
                 <div className="flex gap-3 w-full">
-                    <button 
-                        onClick={() => setDeleteId(null)} 
-                        className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222] transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        onClick={() => { onDelete(deleteId); setDeleteId(null); }} 
-                        className="flex-1 py-3 bg-red-600 rounded text-white text-xs font-bold uppercase hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-all"
-                    >
-                        Delete
-                    </button>
+                    <button onClick={() => setDeleteId(null)} className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222] transition-colors">Cancel</button>
+                    <button onClick={() => { onDelete(deleteId); setDeleteId(null); }} className="flex-1 py-3 bg-red-600 rounded text-white text-xs font-bold uppercase hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-all">Delete</button>
                 </div>
             </div>
         )}
 
-        {/* Clear All Confirmation Overlay */}
         {isClearAllConfirm && (
              <div className="absolute inset-0 bg-black/95 flex items-center justify-center z-20 flex-col p-8 text-center animate-in fade-in duration-200">
                 <h3 className="text-white font-bold text-lg mb-2 text-red-500">Clear All History?</h3>
                 <p className="text-gray-500 text-sm mb-6">You are about to delete all {history.length} recorded sessions. This cannot be undone.</p>
                 <div className="flex gap-3 w-full">
-                    <button 
-                        onClick={() => setIsClearAllConfirm(false)} 
-                        className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222]"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        onClick={() => { onClear(); setIsClearAllConfirm(false); }} 
-                        className="flex-1 py-3 bg-red-900/80 border border-red-700 rounded text-white text-xs font-bold uppercase hover:bg-red-800"
-                    >
-                        Yes, Clear All
-                    </button>
+                    <button onClick={() => setIsClearAllConfirm(false)} className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222]">Cancel</button>
+                    <button onClick={() => { onClear(); setIsClearAllConfirm(false); }} className="flex-1 py-3 bg-red-900/80 border border-red-700 rounded text-white text-xs font-bold uppercase hover:bg-red-800">Yes, Clear All</button>
                 </div>
              </div>
         )}
@@ -1148,35 +969,15 @@ export const Modal: React.FC<ModalProps> = ({ onRestart, onTakeBreak, onClose })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-[#111] border border-[#333] p-8 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col gap-6 transform scale-100">
-        
         <h2 className="text-xl font-bold text-center">Session Interrupted</h2>
-        
         <div className="flex flex-col gap-1 text-center">
           <p className="text-gray-400 text-sm">Distracted?</p>
           <p className="text-white font-bold text-base">What's next?</p>
         </div>
-
         <div className="flex flex-col gap-3 mt-2">
-          <button 
-            onClick={onRestart}
-            className="w-full py-3 rounded bg-white text-black font-bold uppercase text-xs tracking-widest hover:bg-gray-200"
-          >
-            Restart Session
-          </button>
-          
-          <button 
-            onClick={onTakeBreak}
-            className="w-full py-3 rounded border border-[#333] hover:border-[#00ff88] hover:text-[#00ff88] text-gray-300 font-bold uppercase text-xs tracking-widest"
-          >
-            Take a Break
-          </button>
-
-          <button 
-            onClick={onClose}
-            className="w-full py-2 text-gray-500 hover:text-white text-xs"
-          >
-            Close / Resume
-          </button>
+          <button onClick={onRestart} className="w-full py-3 rounded bg-white text-black font-bold uppercase text-xs tracking-widest hover:bg-gray-200">Restart Session</button>
+          <button onClick={onTakeBreak} className="w-full py-3 rounded border border-[#333] hover:border-[#00ff88] hover:text-[#00ff88] text-gray-300 font-bold uppercase text-xs tracking-widest">Take a Break</button>
+          <button onClick={onClose} className="w-full py-2 text-gray-500 hover:text-white text-xs">Close / Resume</button>
         </div>
       </div>
     </div>
@@ -1237,39 +1038,50 @@ import { Phase, TimelineSegment } from '../types';
 interface TimelineProps {
   segments: TimelineSegment[];
   currentPhase: Phase;
-  currentDuration: number; // ms elapsed in current session
+  currentDuration: number;
   isRunning: boolean;
+  totalPhaseDuration: number;
 }
 
-export const Timeline: React.FC<TimelineProps> = ({ segments, currentPhase, currentDuration, isRunning }) => {
-  // Merge completed segments with the current ongoing one for display
-  const allSegments = useMemo(() => {
+export const Timeline: React.FC<TimelineProps> = ({
+  segments, currentPhase, currentDuration, isRunning, totalPhaseDuration
+}) => {
+  const fillPercent = totalPhaseDuration > 0
+    ? Math.min(100, Math.max(0, (currentDuration / totalPhaseDuration) * 100))
+    : 0;
+
+  const isFocusPhase = currentPhase === Phase.FOCUS;
+  const phaseColor = isFocusPhase ? '#00ff88' : '#4488ff';
+  const phaseGlow = isFocusPhase
+    ? '0 0 16px rgba(0, 255, 136, 0.4)'
+    : '0 0 16px rgba(68, 136, 255, 0.4)';
+  const phaseName = currentPhase === Phase.FOCUS ? 'Focus'
+    : currentPhase === Phase.SHORT_BREAK ? 'Short Break'
+    : 'Long Break';
+
+  const allSegments = useMemo<TimelineSegment[]>(() => {
     const list = [...segments];
     if (currentDuration > 0) {
       list.push({
         id: 'current',
         type: currentPhase,
         duration: currentDuration,
-        status: 'ongoing',
+        status: 'ongoing' as const,
         timestamp: Date.now()
       });
     }
     return list;
   }, [segments, currentPhase, currentDuration]);
 
-  // Stats calculation
   const stats = useMemo(() => {
     let totalFocus = 0;
     let totalBreak = 0;
-
     allSegments.forEach(s => {
       if (s.type === Phase.FOCUS) totalFocus += s.duration;
       else totalBreak += s.duration;
     });
-
     const total = totalFocus + totalBreak;
     const focusPercent = total > 0 ? Math.round((totalFocus / total) * 100) : 0;
-
     return { totalFocus, totalBreak, focusPercent };
   }, [allSegments]);
 
@@ -1279,62 +1091,111 @@ export const Timeline: React.FC<TimelineProps> = ({ segments, currentPhase, curr
     return `${mins}m ${secs}s`;
   };
 
-  if (allSegments.length === 0) return null;
+  const hasContent = segments.length > 0 || currentDuration > 0 || isRunning;
+  if (!hasContent) return null;
+
+  // Directional transitions:
+  // Entering element: height expands immediately, then opacity fades in with a short delay.
+  // Exiting element:  opacity fades out immediately, then height collapses after a short delay.
+  const sliderTransition = isRunning
+    ? 'grid-template-rows 480ms ease 0ms, opacity 320ms ease 160ms'
+    : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
+
+  const timelineTransition = !isRunning
+    ? 'grid-template-rows 480ms ease 0ms, opacity 320ms ease 160ms'
+    : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
 
   return (
-    <div className="w-full max-w-2xl mt-8 flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      {/* Stats Header */}
-      <div className="flex justify-between items-end text-xs uppercase tracking-widest text-gray-500 mb-2">
-        <div>
-           <span className="text-white font-bold">{stats.focusPercent}%</span> Focus
-        </div>
-        <div className="flex gap-4">
-            <span>Work: <span className="text-white">{formatTime(stats.totalFocus)}</span></span>
-            <span>Rest: <span className="text-white">{formatTime(stats.totalBreak)}</span></span>
+    <div className="w-full max-w-2xl mt-8">
+
+      {/* ── SLIDER VIEW (running) ── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateRows: isRunning ? '1fr' : '0fr',
+          opacity: isRunning ? 1 : 0,
+          transition: sliderTransition,
+        }}
+      >
+        <div style={{ overflow: 'hidden' }}>
+          <div className="flex flex-col gap-2 pb-1">
+            <div className="flex justify-between items-center text-[10px] uppercase tracking-widest font-bold text-gray-600">
+              <span style={{ color: phaseColor }}>{phaseName}</span>
+              <span>{Math.round(fillPercent)}%</span>
+            </div>
+            <div
+              className="relative h-1.5 w-full rounded-full overflow-hidden bg-[#111]"
+              style={{ border: '1px solid #1c1c1c' }}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${fillPercent}%`,
+                  backgroundColor: phaseColor,
+                  boxShadow: phaseGlow,
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Visual Bar */}
-      <div className="flex h-4 w-full bg-[#111] rounded overflow-hidden border border-[#333]">
-        {allSegments.map((seg, i) => {
-          const isFocus = seg.type === Phase.FOCUS;
-          const isInterrupted = seg.status === 'interrupted';
-          
-          let color = '#333';
-          if (isFocus) {
-            color = isInterrupted ? '#006644' : '#00ff88'; // Darker green for interrupted
-          } else {
-            color = isInterrupted ? '#224466' : '#4488ff'; // Darker blue for interrupted break
-          }
-          
-          // Minimum width for visibility
-          const flexGrow = Math.max(seg.duration, 1000); 
-
-          return (
-            <div 
-              key={seg.id === 'current' ? `current-${i}` : seg.id}
-              style={{ flexGrow, backgroundColor: color }}
-              className={`h-full transition-all duration-500 ${seg.id === 'current' && isRunning ? 'animate-pulse' : ''}`}
-              title={`${seg.type} (${seg.status}): ${formatTime(seg.duration)}`}
-            />
-          );
-        })}
-      </div>
-      
-      {/* Legend */}
-      <div className="flex justify-center gap-4 mt-1">
-        <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-[#00ff88] rounded-full"></div>
-            <span className="text-[10px] text-gray-600 uppercase">Focus</span>
-        </div>
-        <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-[#006644] rounded-full"></div>
-            <span className="text-[10px] text-gray-600 uppercase">Interrupted</span>
-        </div>
-        <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-[#4488ff] rounded-full"></div>
-            <span className="text-[10px] text-gray-600 uppercase">Break</span>
+      {/* ── FULL TIMELINE VIEW (paused / stopped) ── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateRows: !isRunning ? '1fr' : '0fr',
+          opacity: !isRunning ? 1 : 0,
+          transition: timelineTransition,
+        }}
+      >
+        <div style={{ overflow: 'hidden' }}>
+          <div className="flex flex-col gap-2 pt-1">
+            <div className="flex justify-between items-end text-xs uppercase tracking-widest text-gray-500 mb-2">
+              <div>
+                <span className="text-white font-bold">{stats.focusPercent}%</span> Focus
+              </div>
+              <div className="flex gap-4">
+                <span>Work: <span className="text-white">{formatTime(stats.totalFocus)}</span></span>
+                <span>Rest: <span className="text-white">{formatTime(stats.totalBreak)}</span></span>
+              </div>
+            </div>
+            <div className="flex h-4 w-full bg-[#111] rounded overflow-hidden border border-[#333]">
+              {allSegments.map((seg, i) => {
+                const segIsFocus = seg.type === Phase.FOCUS;
+                const isInterrupted = seg.status === 'interrupted';
+                let color = '#333';
+                if (segIsFocus) {
+                  color = isInterrupted ? '#006644' : '#00ff88';
+                } else {
+                  color = isInterrupted ? '#224466' : '#4488ff';
+                }
+                const flexGrow = Math.max(seg.duration, 1000);
+                return (
+                  <div
+                    key={seg.id === 'current' ? `current-${i}` : seg.id}
+                    style={{ flexGrow, backgroundColor: color }}
+                    className="h-full"
+                    title={`${seg.type} (${seg.status}): ${formatTime(seg.duration)}`}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex justify-center gap-4 mt-1">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-[#00ff88] rounded-full" />
+                <span className="text-[10px] text-gray-600 uppercase">Focus</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-[#006644] rounded-full" />
+                <span className="text-[10px] text-gray-600 uppercase">Interrupted</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-[#4488ff] rounded-full" />
+                <span className="text-[10px] text-gray-600 uppercase">Break</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1368,26 +1229,24 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ ms, isOverflowing, p
 
   if (isOverflowing) {
     if (phase === Phase.FOCUS) {
-      // Green for Focus overflow (positive accumulation)
       textColorClass = 'text-[#00ff88]';
       textShadowStyle = '0 0 40px rgba(0, 255, 136, 0.3)';
     } else {
-      // Red for Break overflow (overtime)
       textColorClass = 'text-red-500';
       textShadowStyle = '0 0 40px rgba(239, 68, 68, 0.3)';
     }
   }
 
   return (
-    <div 
-      id="timer" 
+    <div
+      id="timer"
       className={`font-tabular font-extrabold leading-none tracking-tight select-none drop-shadow-[0_0_15px_rgba(255,255,255,0.05)] transition-colors duration-300 ${textColorClass}`}
-      style={{ 
+      style={{
         fontSize: 'clamp(5rem, 18vw, 9.5rem)',
         textShadow: textShadowStyle
       }}
     >
-      {isOverflowing && <span className="mr-[-0.2em] opacity-80">+</span>}{formatted}
+      {isOverflowing && <span className="mr-2 opacity-80">+</span>}{formatted}
     </div>
   );
 };

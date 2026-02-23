@@ -88,11 +88,12 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                   {/* Expanded Timeline View */}
                   {isExpanded && hasTimeline && (
                     <div className="border-t border-[#222] bg-[#050505] p-4 animate-in fade-in slide-in-from-top-1">
-                       <Timeline 
-                          segments={entry.segments} 
-                          currentPhase={Phase.FOCUS} // Irrelevant for static view
-                          currentDuration={0} 
+                       <Timeline
+                          segments={entry.segments}
+                          currentPhase={Phase.FOCUS}
+                          currentDuration={0}
                           isRunning={false}
+                          totalPhaseDuration={0}
                        />
                     </div>
                   )}

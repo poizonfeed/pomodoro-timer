@@ -495,11 +495,12 @@ export default function App() {
       />
 
       {/* Timeline */}
-      <Timeline 
-        segments={segments} 
-        currentPhase={timerState.phase} 
+      <Timeline
+        segments={segments}
+        currentPhase={timerState.phase}
         currentDuration={currentSegmentElapsed}
         isRunning={timerState.isRunning}
+        totalPhaseDuration={getDurationForPhase(timerState.phase) * 60 * 1000}
       />
 
       {/* Footer: Volume & History */}

@@ -1,7 +1,7 @@
 # for_gpt.md - Full Project Source
 
 This file contains the complete source code for the Fluorite Focus project.
-Last updated: 2026-02-24 17:06 UTC+5
+Last updated: 2026-02-24 17:15 UTC+5
 
 ## File Tree
 - `package.json`
@@ -1092,11 +1092,20 @@ export const Timeline: React.FC<TimelineProps> = ({
   };
 
   const hasContent = segments.length > 0 || currentDuration > 0 || isRunning;
-  if (!hasContent) return null;
 
   // Directional transitions:
   // Entering element: height expands immediately, then opacity fades in with a short delay.
   // Exiting element:  opacity fades out immediately, then height collapses after a short delay.
+
+  // Outer wrapper: grows/collapses when the component appears/disappears for the first time.
+  const outerTransition = hasContent
+    ? 'grid-template-rows 480ms ease 0ms'
+    : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
+
+  // Slider: pre-positioned at 1fr when there's no content yet so the outer reveal is a clean
+  // curtain-rise with no double-animation. Opacity also pre-set to 1 for the same reason.
+  const sliderGridRows = (isRunning || !hasContent) ? '1fr' : '0fr';
+  const sliderOpacity = (isRunning || !hasContent) ? 1 : 0;
   const sliderTransition = isRunning
     ? 'grid-template-rows 480ms ease 0ms, opacity 320ms ease 160ms'
     : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
@@ -1106,23 +1115,35 @@ export const Timeline: React.FC<TimelineProps> = ({
     : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
 
   return (
-    <div className="w-full max-w-2xl mt-8">
+    <div
+      className="w-full max-w-2xl"
+      style={{
+        display: 'grid',
+        gridTemplateRows: hasContent ? '1fr' : '0fr',
+        opacity: hasContent ? 1 : 0,
+        transition: outerTransition,
+      }}
+    >
+      <div style={{ overflow: 'hidden' }}>
+      <div className="mt-8">
 
       {/* ── SLIDER VIEW (running) ── */}
       <div
         style={{
           display: 'grid',
-          gridTemplateRows: isRunning ? '1fr' : '0fr',
-          opacity: isRunning ? 1 : 0,
+          gridTemplateRows: sliderGridRows,
+          opacity: sliderOpacity,
           transition: sliderTransition,
         }}
       >
         <div style={{ overflow: 'hidden' }}>
           <div className="flex flex-col gap-2 pb-1">
+            {/* Label row */}
             <div className="flex justify-between items-center text-[10px] uppercase tracking-widest font-bold text-gray-600">
               <span style={{ color: phaseColor }}>{phaseName}</span>
               <span>{Math.round(fillPercent)}%</span>
             </div>
+            {/* Progress bar */}
             <div
               className="relative h-1.5 w-full rounded-full overflow-hidden bg-[#111]"
               style={{ border: '1px solid #1c1c1c' }}
@@ -1151,6 +1172,8 @@ export const Timeline: React.FC<TimelineProps> = ({
       >
         <div style={{ overflow: 'hidden' }}>
           <div className="flex flex-col gap-2 pt-1">
+
+            {/* Stats header */}
             <div className="flex justify-between items-end text-xs uppercase tracking-widest text-gray-500 mb-2">
               <div>
                 <span className="text-white font-bold">{stats.focusPercent}%</span> Focus
@@ -1160,6 +1183,8 @@ export const Timeline: React.FC<TimelineProps> = ({
                 <span>Rest: <span className="text-white">{formatTime(stats.totalBreak)}</span></span>
               </div>
             </div>
+
+            {/* Segmented bar */}
             <div className="flex h-4 w-full bg-[#111] rounded overflow-hidden border border-[#333]">
               {allSegments.map((seg, i) => {
                 const segIsFocus = seg.type === Phase.FOCUS;
@@ -1181,6 +1206,8 @@ export const Timeline: React.FC<TimelineProps> = ({
                 );
               })}
             </div>
+
+            {/* Legend */}
             <div className="flex justify-center gap-4 mt-1">
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-[#00ff88] rounded-full" />
@@ -1195,10 +1222,13 @@ export const Timeline: React.FC<TimelineProps> = ({
                 <span className="text-[10px] text-gray-600 uppercase">Break</span>
               </div>
             </div>
+
           </div>
         </div>
       </div>
 
+      </div>
+      </div>
     </div>
   );
 };

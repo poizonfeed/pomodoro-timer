@@ -58,11 +58,20 @@ export const Timeline: React.FC<TimelineProps> = ({
   };
 
   const hasContent = segments.length > 0 || currentDuration > 0 || isRunning;
-  if (!hasContent) return null;
 
   // Directional transitions:
   // Entering element: height expands immediately, then opacity fades in with a short delay.
   // Exiting element:  opacity fades out immediately, then height collapses after a short delay.
+
+  // Outer wrapper: grows/collapses when the component appears/disappears for the first time.
+  const outerTransition = hasContent
+    ? 'grid-template-rows 480ms ease 0ms'
+    : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
+
+  // Slider: pre-positioned at 1fr when there's no content yet so the outer reveal is a clean
+  // curtain-rise with no double-animation. Opacity also pre-set to 1 for the same reason.
+  const sliderGridRows = (isRunning || !hasContent) ? '1fr' : '0fr';
+  const sliderOpacity = (isRunning || !hasContent) ? 1 : 0;
   const sliderTransition = isRunning
     ? 'grid-template-rows 480ms ease 0ms, opacity 320ms ease 160ms'
     : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
@@ -72,14 +81,24 @@ export const Timeline: React.FC<TimelineProps> = ({
     : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
 
   return (
-    <div className="w-full max-w-2xl mt-8">
+    <div
+      className="w-full max-w-2xl"
+      style={{
+        display: 'grid',
+        gridTemplateRows: hasContent ? '1fr' : '0fr',
+        opacity: hasContent ? 1 : 0,
+        transition: outerTransition,
+      }}
+    >
+      <div style={{ overflow: 'hidden' }}>
+      <div className="mt-8">
 
       {/* ── SLIDER VIEW (running) ── */}
       <div
         style={{
           display: 'grid',
-          gridTemplateRows: isRunning ? '1fr' : '0fr',
-          opacity: isRunning ? 1 : 0,
+          gridTemplateRows: sliderGridRows,
+          opacity: sliderOpacity,
           transition: sliderTransition,
         }}
       >
@@ -174,6 +193,8 @@ export const Timeline: React.FC<TimelineProps> = ({
         </div>
       </div>
 
+      </div>
+      </div>
     </div>
   );
 };

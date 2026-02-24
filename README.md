@@ -1,4 +1,4 @@
-# MacModoro
+# Fluorite Focus
 
 A high-fidelity, true-black Pomodoro timer designed for users who love minimalism and high contrast. Built with React 19 and TypeScript, powered by Vite.
 

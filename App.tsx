@@ -8,9 +8,9 @@ import { Modal } from './components/Modal';
 import { Timeline } from './components/Timeline';
 import { HistoryModal } from './components/HistoryModal';
 
-const STORAGE_KEY = 'macmodoro_v1';
-const TIMELINE_KEY = 'macmodoro_timeline';
-const HISTORY_KEY = 'macmodoro_history';
+const STORAGE_KEY = 'fluoritefocus_v1';
+const TIMELINE_KEY = 'fluoritefocus_timeline';
+const HISTORY_KEY = 'fluoritefocus_history';
 
 export default function App() {
   // --- State ---

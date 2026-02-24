@@ -1,4 +1,4 @@
-# ROADMAP.md - MacModoro Evolution
+# ROADMAP.md - Fluorite Focus Evolution
 
 ## ✅ Phase 1: Core Functionality (v1.0)
 - [x] Pomodoro timer logic (Focus / Short Break / Long Break cycles).

@@ -1,4 +1,4 @@
-# ARCHITECTURE.md - MacModoro System Design
+# ARCHITECTURE.md - Fluorite Focus System Design
 
 ## Component Hierarchy
 
@@ -49,9 +49,9 @@ App (Root)
 ### 5. Persistence
 - Multiple `useEffect` hooks watch `settings`, `timerState`, `segments`, and `history`.
 - Changes are serialized to JSON and saved to `localStorage` under three keys:
-  - `macmodoro_v1` — settings, timer state, session name
-  - `macmodoro_timeline` — current session segments
-  - `macmodoro_history` — all historical entries
+  - `fluoritefocus_v1` — settings, timer state, session name
+  - `fluoritefocus_timeline` — current session segments
+  - `fluoritefocus_history` — all historical entries
 
 ## Component Responsibilities
 

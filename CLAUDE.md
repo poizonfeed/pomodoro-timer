@@ -1,7 +1,7 @@
-# CLAUDE.md - MacModoro Project Guide
+# CLAUDE.md - Fluorite Focus Project Guide
 
 ## Project Overview
-MacModoro is a high-contrast, professional-grade Pomodoro timer built with React and TypeScript. It features persistent settings, session history, a visual timeline of work/break balance, and distraction management.
+Fluorite Focus is a high-contrast, professional-grade Pomodoro timer built with React and TypeScript. It features persistent settings, session history, a visual timeline of work/break balance, and distraction management.
 
 ## Tech Stack
 - **Framework:** React 19 (Functional Components, Hooks)

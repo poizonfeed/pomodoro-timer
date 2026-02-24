@@ -1,7 +1,7 @@
 # for_gpt.md - Full Project Source
 
-This file contains the complete source code for the MacModoro project.
-Last updated: 2026-02-23
+This file contains the complete source code for the Fluorite Focus project.
+Last updated: 2026-02-24 17:06 UTC+5
 
 ## File Tree
 - `package.json`
@@ -113,7 +113,7 @@ export default defineConfig(({ mode }) => {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MacModoro</title>
+    <title>Fluorite Focus</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -214,9 +214,9 @@ import { Modal } from './components/Modal';
 import { Timeline } from './components/Timeline';
 import { HistoryModal } from './components/HistoryModal';
 
-const STORAGE_KEY = 'macmodoro_v1';
-const TIMELINE_KEY = 'macmodoro_timeline';
-const HISTORY_KEY = 'macmodoro_history';
+const STORAGE_KEY = 'fluoritefocus_v1';
+const TIMELINE_KEY = 'fluoritefocus_timeline';
+const HISTORY_KEY = 'fluoritefocus_history';
 
 export default function App() {
   const [sessionName, setSessionName] = useState('');

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Phase, Settings, TimerState, TimelineSegment, HistoryEntry } from './types';
 import { DEFAULT_SETTINGS, DING_B64 } from './constants';
-import { SettingsPanel } from './components/SettingsPanel';
+import { SettingsMenu } from './components/SettingsMenu';
 import { Controls } from './components/Controls';
 import { TimerDisplay } from './components/TimerDisplay';
 import { Modal } from './components/Modal';
@@ -61,6 +61,7 @@ export default function App() {
   const [isDistractionModalOpen, setIsDistractionModalOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Audio Ref
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -456,19 +457,41 @@ export default function App() {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 selection:bg-[#00ff88] selection:text-black">
       {/* Header */}
-      <header className="w-full max-w-md flex justify-center mb-10 relative">
+      <header className="w-full max-w-md flex items-center mb-4 relative">
+        {/* Spacer to keep input visually centered */}
+        <div className="w-9 flex-shrink-0" />
         <input
           id="sessionName"
           type="text"
           placeholder="Session name"
           value={sessionName}
           onChange={(e) => setSessionName(e.target.value)}
-          className="bg-transparent border-b border-[#333] text-center text-2xl w-full py-2 font-bold focus:outline-none focus:border-[#00ff88] transition-colors placeholder-gray-700"
+          className="bg-transparent border-b border-[#333] text-center text-2xl flex-1 py-2 font-bold focus:outline-none focus:border-[#00ff88] transition-colors placeholder-gray-700"
         />
+        <button
+          onClick={() => setIsSettingsOpen(prev => !prev)}
+          title="Settings"
+          className={`ml-3 flex-shrink-0 w-9 h-9 rounded-full border flex items-center justify-center transition-all active:scale-95 ${
+            isSettingsOpen
+              ? 'border-[#00ff88] text-[#00ff88] bg-[#00ff88]/5'
+              : 'border-[#222] text-gray-500 hover:text-white hover:border-[#333] hover:bg-[#111]'
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
       </header>
 
-      {/* Settings Row */}
-      <SettingsPanel settings={settings} setSettings={setSettings} />
+      {/* Settings Dropdown */}
+      {isSettingsOpen && (
+        <SettingsMenu
+          settings={settings}
+          setSettings={setSettings}
+          onPreviewSound={playSound}
+        />
+      )}
 
       {/* Timer Display */}
       <main className="flex-1 flex flex-col items-center justify-center w-full relative">
@@ -503,37 +526,15 @@ export default function App() {
         totalPhaseDuration={getDurationForPhase(timerState.phase) * 60 * 1000}
       />
 
-      {/* Footer: Volume & History */}
-      <footer className="w-full max-w-md mt-12 mb-6 flex flex-col gap-8">
-        <div className="flex items-center gap-5 text-gray-500 justify-center w-full max-w-xs mx-auto">
-          <span className="text-[10px] font-bold uppercase tracking-widest w-10">Bell</span>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="10"
-            value={settings.volume}
-            onChange={(e) => setSettings({ ...settings, volume: parseInt(e.target.value) })}
-            className="flex-1"
-          />
-          <button 
-            onClick={playSound}
-            title="Preview Sound"
-            className="w-10 h-10 rounded-full border border-[#222] flex items-center justify-center text-[#00ff88] hover:bg-[#111] hover:border-[#333] active:scale-95 transition-all"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-          </button>
-        </div>
-        
-        <div className="flex justify-center">
-            <button 
-                onClick={() => setIsHistoryModalOpen(true)}
-                className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.25em] text-gray-600 hover:text-white transition-colors group"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:text-[#00ff88] transition-colors"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                History
-            </button>
-        </div>
+      {/* Footer: History */}
+      <footer className="w-full max-w-md mt-12 mb-6 flex justify-center">
+        <button
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.25em] text-gray-600 hover:text-white transition-colors group"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:text-[#00ff88] transition-colors"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            History
+        </button>
       </footer>
 
       {/* Distraction Modal */}

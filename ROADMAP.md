@@ -26,6 +26,15 @@
 - [x] Smooth animated morph between slider and full timeline using CSS `grid-template-rows` trick with directional opacity delays.
 - [x] Slider color reflects active phase (green = Focus, blue = Break).
 
+## ✅ Phase 5: Settings Menu (v1.5)
+- [x] Collapsed settings panel behind a gear icon button (⚙) placed to the right of the session name input.
+- [x] Timer duration sliders (Focus, Short Break, Long Break) moved from always-visible row into the settings panel.
+- [x] Bell volume slider and preview button moved from footer into the settings panel.
+- [x] Settings panel sections: "Durations" and "Bell Volume", separated by a divider.
+- [x] Gear button glows green when the panel is open; toggles closed on second click.
+- [x] Multi-word labels ("Short Break", "Long Break") stack vertically so all three sliders are horizontally aligned.
+- [x] Footer simplified — only History button remains.
+
 ## 🚀 Future Roadmap
 - [ ] **Analytics Dashboard:** Visual charts (D3/Recharts) showing productivity trends over weeks/months.
 - [ ] **Data Portability:** Export history to CSV or JSON.
@@ -35,6 +44,6 @@
 - [ ] **Accessibility:** ARIA labels, improved focus states, keyboard navigation for modals.
 
 ## Current Priorities
-1. Optimize `localStorage` usage for large history sets.
-2. Add browser notification support for phase completion.
-3. Improve mobile layout and touch interactions.
+1. Add browser notification support for phase completion.
+2. Improve mobile layout and touch interactions.
+3. Optimize `localStorage` usage for large history sets.

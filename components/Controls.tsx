@@ -83,7 +83,7 @@ export const Controls: React.FC<ControlsProps> = ({
         onClick={onReset} 
         className={resetBtnClass}
       >
-        Stop Session
+        End Session
       </button>
 
     </div>

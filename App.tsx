@@ -502,7 +502,7 @@ export default function App() {
         
         {/* Shortcuts Hint */}
         <div className="absolute bottom-[-2rem] text-[10px] text-gray-700 uppercase font-bold tracking-[0.3em] pointer-events-none opacity-40">
-          [Space] {isOverflowing ? 'Next' : 'Toggle'} · [R] End · [Esc] Menu
+          [Space] {isOverflowing ? 'Next' : 'Pause'} · [R] End Session · [Esc] Stop
         </div>
       </main>
 

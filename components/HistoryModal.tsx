@@ -54,7 +54,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                       <div>
                           <div className="font-bold text-white text-sm mb-1">{entry.name}</div>
                           <div className="text-[10px] text-gray-500 uppercase tracking-wider font-mono">
-                            {new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' })}
+                            {new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {entry.segments?.length > 0 ? new Date(entry.segments[0].timestamp - entry.segments[0].duration).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' }) + ' → ' : ''}{new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' })}
                           </div>
                       </div>
                       <div className="flex items-center gap-2 pl-4">

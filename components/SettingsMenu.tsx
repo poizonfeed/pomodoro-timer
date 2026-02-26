@@ -50,9 +50,9 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSetting
 
       <div className="border-t border-[#1c1c1c]" />
 
-      {/* Bell Volume */}
+      {/* Alarm Volume */}
       <div>
-        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-700 mb-4">Bell Volume</p>
+        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-700 mb-4">Alarm Volume</p>
         <div className="flex items-center gap-4">
           <input
             type="range"
@@ -74,6 +74,28 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSetting
               <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
             </svg>
           </button>
+        </div>
+      </div>
+
+      <div className="border-t border-[#1c1c1c]" />
+
+      {/* Alarm Repetitions */}
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-700 mb-4">Alarm Repetitions</p>
+        <div className="flex items-center gap-2">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button
+              key={n}
+              onClick={() => setSettings(prev => ({ ...prev, alarmRepetitions: n }))}
+              className={`flex-1 h-9 rounded-full border text-xs font-bold tracking-widest transition-all active:scale-95 ${
+                settings.alarmRepetitions === n
+                  ? 'border-[#00ff88] text-[#00ff88] bg-[#00ff88]/5'
+                  : 'border-[#222] text-gray-500 hover:border-[#333] hover:text-white hover:bg-[#111]'
+              }`}
+            >
+              {n}
+            </button>
+          ))}
         </div>
       </div>
     </div>

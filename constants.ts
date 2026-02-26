@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shortBreakDuration: 5,
   longBreakDuration: 15,
   volume: 50,
+  alarmRepetitions: 1,
 };
 
 // Longer alarm sound (simulated repetitive beep)

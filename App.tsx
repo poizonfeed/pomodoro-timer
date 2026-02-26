@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Phase, Settings, TimerState, TimelineSegment, HistoryEntry } from './types';
-import { DEFAULT_SETTINGS, DING_B64 } from './constants';
+import { DEFAULT_SETTINGS } from './constants';
 import { SettingsMenu } from './components/SettingsMenu';
 import { Controls } from './components/Controls';
 import { TimerDisplay } from './components/TimerDisplay';
@@ -63,8 +63,9 @@ export default function App() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Audio Ref
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Audio Context Refs
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const previewCtxRef = useRef<AudioContext | null>(null);
   
   // Change Detection Refs for Smart Reset
   const prevSettingsRef = useRef(settings);
@@ -149,13 +150,131 @@ export default function App() {
 
 
   const playSound = useCallback(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio(DING_B64);
+    try {
+      const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!ACtx) return;
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new ACtx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const volume = settings.volume / 100;
+      if (volume === 0) return;
+
+      // Power curve so 50% volume actually sounds like 50%, not 100%
+      const peakGain = Math.pow(volume, 2) * 0.5;
+      const reps = settings.alarmRepetitions;
+      const repSpacing = 2.8; // seconds between repetition starts
+
+      // Airplane cabin bell: fundamental sine + fast-decaying inharmonic overtone
+      const playBell = (freq: number, startAt: number) => {
+        const decayTime = 2.0;
+
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startAt);
+        osc.connect(env);
+        env.connect(ctx.destination);
+        env.gain.setValueAtTime(0, startAt);
+        env.gain.linearRampToValueAtTime(peakGain, startAt + 0.004);
+        env.gain.exponentialRampToValueAtTime(0.0001, startAt + decayTime);
+        osc.start(startAt);
+        osc.stop(startAt + decayTime + 0.05);
+
+        // Inharmonic overtone at 2.756× for bell-like "clang" quality (fades quickly)
+        const osc2 = ctx.createOscillator();
+        const env2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(freq * 2.756, startAt);
+        osc2.connect(env2);
+        env2.connect(ctx.destination);
+        env2.gain.setValueAtTime(0, startAt);
+        env2.gain.linearRampToValueAtTime(peakGain * 0.3, startAt + 0.004);
+        env2.gain.exponentialRampToValueAtTime(0.0001, startAt + decayTime * 0.35);
+        osc2.start(startAt);
+        osc2.stop(startAt + decayTime * 0.35 + 0.05);
+      };
+
+      for (let i = 0; i < reps; i++) {
+        const base = ctx.currentTime + i * repSpacing;
+        playBell(880, base);          // A5 — high note
+        playBell(659.25, base + 0.6); // E5 — low note (perfect fifth below)
+      }
+    } catch (e) {
+      console.warn('Audio play failed', e);
     }
-    audioRef.current.volume = settings.volume / 100;
-    audioRef.current.currentTime = 0;
-    audioRef.current.play().catch(e => console.warn("Audio play failed", e));
+  }, [settings.volume, settings.alarmRepetitions]);
+
+  // Preview: always plays exactly one chime in its own AudioContext so it can be
+  // stopped instantly when the settings panel closes.
+  const isPreviewBusyRef = useRef(false);
+
+  const stopPreview = useCallback(() => {
+    if (previewCtxRef.current) {
+      previewCtxRef.current.close().catch(() => {});
+      previewCtxRef.current = null;
+    }
+    isPreviewBusyRef.current = false;
+  }, []);
+
+  const previewSound = useCallback(() => {
+    if (isPreviewBusyRef.current) return;
+    isPreviewBusyRef.current = true;
+    // 2.7 s covers: bell2 starts at 0.6 s, decays 2.0 s + small buffer
+    setTimeout(() => { isPreviewBusyRef.current = false; }, 2700);
+
+    try {
+      const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!ACtx) return;
+      const ctx = new ACtx();
+      previewCtxRef.current = ctx;
+
+      const volume = settings.volume / 100;
+      if (volume === 0) return;
+      const peakGain = Math.pow(volume, 2) * 0.5;
+
+      const playBell = (freq: number, startAt: number) => {
+        const decayTime = 2.0;
+
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startAt);
+        osc.connect(env);
+        env.connect(ctx.destination);
+        env.gain.setValueAtTime(0, startAt);
+        env.gain.linearRampToValueAtTime(peakGain, startAt + 0.004);
+        env.gain.exponentialRampToValueAtTime(0.0001, startAt + decayTime);
+        osc.start(startAt);
+        osc.stop(startAt + decayTime + 0.05);
+
+        const osc2 = ctx.createOscillator();
+        const env2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(freq * 2.756, startAt);
+        osc2.connect(env2);
+        env2.connect(ctx.destination);
+        env2.gain.setValueAtTime(0, startAt);
+        env2.gain.linearRampToValueAtTime(peakGain * 0.3, startAt + 0.004);
+        env2.gain.exponentialRampToValueAtTime(0.0001, startAt + decayTime * 0.35);
+        osc2.start(startAt);
+        osc2.stop(startAt + decayTime * 0.35 + 0.05);
+      };
+
+      // Always one chime — preview never depends on alarmRepetitions
+      playBell(880, ctx.currentTime);
+      playBell(659.25, ctx.currentTime + 0.6);
+    } catch (e) {
+      console.warn('Preview audio failed', e);
+    }
   }, [settings.volume]);
+
+  // Kill preview the moment the settings panel closes
+  useEffect(() => {
+    if (!isSettingsOpen) stopPreview();
+  }, [isSettingsOpen, stopPreview]);
 
   // --- Timer Tick ---
 
@@ -489,7 +608,7 @@ export default function App() {
         <SettingsMenu
           settings={settings}
           setSettings={setSettings}
-          onPreviewSound={playSound}
+          onPreviewSound={previewSound}
         />
       )}
 

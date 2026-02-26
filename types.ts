@@ -9,6 +9,7 @@ export interface Settings {
   shortBreakDuration: number;
   longBreakDuration: number;
   volume: number;
+  alarmRepetitions: number;
 }
 
 export interface TimerState {

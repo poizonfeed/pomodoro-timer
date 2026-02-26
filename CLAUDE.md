@@ -20,7 +20,7 @@ Fluorite Focus is a high-contrast, professional-grade Pomodoro timer built with 
 - **Components:** Use functional components with explicit prop interfaces.
 - **Styling:** Strictly use Tailwind CSS classes. Maintain a "True Black" (#000000) background.
 - **Types:** Define all interfaces and enums in `types.ts`.
-- **Constants:** Store default settings and static assets (like base64 audio) in `constants.ts`.
+- **Constants:** Store default settings in `constants.ts`. Audio is synthesized via Web Audio API — do not add audio file dependencies.
 - **State:** Keep the source of truth in `App.tsx` and pass data down via props.
 - **Performance:** Use `useCallback` and `useMemo` for expensive calculations or stable function references.
 - **Icons:** Use inline SVGs or `lucide-react` (if installed).
@@ -30,12 +30,12 @@ Fluorite Focus is a high-contrast, professional-grade Pomodoro timer built with 
 - `/components/Controls.tsx`: Start / Pause / Resume / Stop / Next Phase buttons.
 - `/components/HistoryModal.tsx`: Past sessions list with expandable timelines and delete controls.
 - `/components/Modal.tsx`: "Session Interrupted" distraction modal.
-- `/components/SettingsMenu.tsx`: Collapsible settings panel (timer durations + bell volume). Toggled by a gear icon button in the header.
+- `/components/SettingsMenu.tsx`: Collapsible settings panel (timer durations + alarm volume + alarm repetitions). Toggled by a gear icon button in the header.
 - `/components/SettingsPanel.tsx`: Original always-visible duration sliders — **unused**, superseded by SettingsMenu.
 - `/components/Timeline.tsx`: Dual-mode progress bar (live slider ↔ full segmented timeline).
 - `/components/TimerDisplay.tsx`: Large MM:SS clock with overflow prefix and phase-aware color.
 - `/types.ts`: TypeScript definitions (`Phase`, `Settings`, `TimerState`, `TimelineSegment`, `HistoryEntry`).
-- `/constants.ts`: Default settings and base64-encoded WAV alarm (`DING_B64`).
+- `/constants.ts`: Default settings (`DEFAULT_SETTINGS`) and legacy `DING_B64` (unused — alarm is now synthesized via Web Audio API in `App.tsx`).
 - `/index.tsx`: React entry point.
 - `/index.html`: HTML template — loads Tailwind via CDN, defines custom slider/animation styles.
 
@@ -44,5 +44,6 @@ Fluorite Focus is a high-contrast, professional-grade Pomodoro timer built with 
 - **Persistence:** Automatically saves settings, current timer state, timeline, and history to `localStorage` under three keys: `fluoritefocus_v1`, `fluoritefocus_timeline`, `fluoritefocus_history`.
 - **Overflow:** Tracks time spent *after* the timer reaches zero. Green glow on Focus overflow (keep going), red glow on Break overtime.
 - **Smart Reset:** Settings changes only apply to the next session or if the timer is stopped.
-- **Settings Menu:** The gear button (⚙) to the right of the session name toggles `isSettingsOpen`. When open, `<SettingsMenu>` mounts between the header and timer.
+- **Settings Menu:** The gear button (⚙) to the right of the session name toggles `isSettingsOpen`. When open, `<SettingsMenu>` mounts between the header and timer. Three sections: Durations, Alarm Volume, Alarm Repetitions.
+- **Alarm Sound:** Synthesized in `App.tsx` using Web Audio API — a two-tone descending airplane bell (A5 → E5) with an inharmonic overtone for bell character. `playSound` uses `settings.alarmRepetitions`. `previewSound` always plays exactly one chime in its own `AudioContext` (`previewCtxRef`) so it stops instantly when the settings panel closes.
 - **No Backend:** This is a pure client-side application. Do not add server-side dependencies unless explicitly requested.

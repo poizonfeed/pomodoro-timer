@@ -35,6 +35,15 @@
 - [x] Multi-word labels ("Short Break", "Long Break") stack vertically so all three sliders are horizontally aligned.
 - [x] Footer simplified — only History button remains.
 
+## ✅ Phase 6: Alarm Overhaul (v1.6)
+- [x] Replaced base64 WAV with a fully synthesized airplane cabin bell using Web Audio API (A5 → E5 two-tone descending chime with inharmonic overtone for bell character).
+- [x] Volume power curve (`gain²`) so 50% volume sounds like 50%, not 100%.
+- [x] Alarm repetitions setting (1–5 pill buttons) — alarm fires N times in sequence at phase end.
+- [x] Renamed "Bell Volume" → "Alarm Volume" in settings panel.
+- [x] Preview always plays exactly one chime (independent of repetitions setting).
+- [x] Preview sound stops instantly when the settings panel is closed (dedicated `AudioContext` per preview, closed on panel hide).
+- [x] Preview button debounced — cannot overlap with itself.
+
 ## 🚀 Future Roadmap
 - [ ] **Analytics Dashboard:** Visual charts (D3/Recharts) showing productivity trends over weeks/months.
 - [ ] **Data Portability:** Export history to CSV or JSON.

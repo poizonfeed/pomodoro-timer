@@ -1,7 +1,7 @@
 # for_gpt.md - Full Project Source
 
 This file contains the complete source code for the Fluorite Focus project.
-Last updated: 2026-02-25
+Last updated: 2026-02-26
 
 ## File Tree
 - `package.json`
@@ -207,7 +207,7 @@ root.render(
 ```tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Phase, Settings, TimerState, TimelineSegment, HistoryEntry } from './types';
-import { DEFAULT_SETTINGS, DING_B64 } from './constants';
+import { DEFAULT_SETTINGS } from './constants';
 import { SettingsMenu } from './components/SettingsMenu';
 import { Controls } from './components/Controls';
 import { TimerDisplay } from './components/TimerDisplay';
@@ -270,8 +270,9 @@ export default function App() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Audio Ref
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Audio Context Refs
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const previewCtxRef = useRef<AudioContext | null>(null);
 
   // Change Detection Refs for Smart Reset
   const prevSettingsRef = useRef(settings);
@@ -356,13 +357,131 @@ export default function App() {
 
 
   const playSound = useCallback(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio(DING_B64);
+    try {
+      const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!ACtx) return;
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new ACtx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const volume = settings.volume / 100;
+      if (volume === 0) return;
+
+      // Power curve so 50% volume actually sounds like 50%, not 100%
+      const peakGain = Math.pow(volume, 2) * 0.5;
+      const reps = settings.alarmRepetitions;
+      const repSpacing = 2.8; // seconds between repetition starts
+
+      // Airplane cabin bell: fundamental sine + fast-decaying inharmonic overtone
+      const playBell = (freq: number, startAt: number) => {
+        const decayTime = 2.0;
+
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startAt);
+        osc.connect(env);
+        env.connect(ctx.destination);
+        env.gain.setValueAtTime(0, startAt);
+        env.gain.linearRampToValueAtTime(peakGain, startAt + 0.004);
+        env.gain.exponentialRampToValueAtTime(0.0001, startAt + decayTime);
+        osc.start(startAt);
+        osc.stop(startAt + decayTime + 0.05);
+
+        // Inharmonic overtone at 2.756× for bell-like "clang" quality (fades quickly)
+        const osc2 = ctx.createOscillator();
+        const env2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(freq * 2.756, startAt);
+        osc2.connect(env2);
+        env2.connect(ctx.destination);
+        env2.gain.setValueAtTime(0, startAt);
+        env2.gain.linearRampToValueAtTime(peakGain * 0.3, startAt + 0.004);
+        env2.gain.exponentialRampToValueAtTime(0.0001, startAt + decayTime * 0.35);
+        osc2.start(startAt);
+        osc2.stop(startAt + decayTime * 0.35 + 0.05);
+      };
+
+      for (let i = 0; i < reps; i++) {
+        const base = ctx.currentTime + i * repSpacing;
+        playBell(880, base);          // A5 — high note
+        playBell(659.25, base + 0.6); // E5 — low note (perfect fifth below)
+      }
+    } catch (e) {
+      console.warn('Audio play failed', e);
     }
-    audioRef.current.volume = settings.volume / 100;
-    audioRef.current.currentTime = 0;
-    audioRef.current.play().catch(e => console.warn("Audio play failed", e));
+  }, [settings.volume, settings.alarmRepetitions]);
+
+  // Preview: always plays exactly one chime in its own AudioContext so it can be
+  // stopped instantly when the settings panel closes.
+  const isPreviewBusyRef = useRef(false);
+
+  const stopPreview = useCallback(() => {
+    if (previewCtxRef.current) {
+      previewCtxRef.current.close().catch(() => {});
+      previewCtxRef.current = null;
+    }
+    isPreviewBusyRef.current = false;
+  }, []);
+
+  const previewSound = useCallback(() => {
+    if (isPreviewBusyRef.current) return;
+    isPreviewBusyRef.current = true;
+    // 2.7 s covers: bell2 starts at 0.6 s, decays 2.0 s + small buffer
+    setTimeout(() => { isPreviewBusyRef.current = false; }, 2700);
+
+    try {
+      const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!ACtx) return;
+      const ctx = new ACtx();
+      previewCtxRef.current = ctx;
+
+      const volume = settings.volume / 100;
+      if (volume === 0) return;
+      const peakGain = Math.pow(volume, 2) * 0.5;
+
+      const playBell = (freq: number, startAt: number) => {
+        const decayTime = 2.0;
+
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startAt);
+        osc.connect(env);
+        env.connect(ctx.destination);
+        env.gain.setValueAtTime(0, startAt);
+        env.gain.linearRampToValueAtTime(peakGain, startAt + 0.004);
+        env.gain.exponentialRampToValueAtTime(0.0001, startAt + decayTime);
+        osc.start(startAt);
+        osc.stop(startAt + decayTime + 0.05);
+
+        const osc2 = ctx.createOscillator();
+        const env2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(freq * 2.756, startAt);
+        osc2.connect(env2);
+        env2.connect(ctx.destination);
+        env2.gain.setValueAtTime(0, startAt);
+        env2.gain.linearRampToValueAtTime(peakGain * 0.3, startAt + 0.004);
+        env2.gain.exponentialRampToValueAtTime(0.0001, startAt + decayTime * 0.35);
+        osc2.start(startAt);
+        osc2.stop(startAt + decayTime * 0.35 + 0.05);
+      };
+
+      // Always one chime — preview never depends on alarmRepetitions
+      playBell(880, ctx.currentTime);
+      playBell(659.25, ctx.currentTime + 0.6);
+    } catch (e) {
+      console.warn('Preview audio failed', e);
+    }
   }, [settings.volume]);
+
+  // Kill preview the moment the settings panel closes
+  useEffect(() => {
+    if (!isSettingsOpen) stopPreview();
+  }, [isSettingsOpen, stopPreview]);
 
   // --- Timer Tick ---
 
@@ -679,7 +798,7 @@ export default function App() {
         <SettingsMenu
           settings={settings}
           setSettings={setSettings}
-          onPreviewSound={playSound}
+          onPreviewSound={previewSound}
         />
       )}
 
@@ -789,6 +908,7 @@ export interface Settings {
   shortBreakDuration: number;
   longBreakDuration: number;
   volume: number;
+  alarmRepetitions: number;
 }
 
 export interface TimerState {
@@ -827,6 +947,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shortBreakDuration: 5,
   longBreakDuration: 15,
   volume: 50,
+  alarmRepetitions: 1,
 };
 
 export const DING_B64 = "data:audio/wav;base64,UklGRqRwAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YYBwAACBhYqFbF1fdJivrJBhNjVgodDbqWEzM2CfutvnrmE0M1+ZtuHirGM1NFyXuODlsWQ2NVqTt+LmtWg3NViRtOLnuGk4NFePs+LovGw5NFWOsePpvm06NFSMsOPqwG47NFOMr+TrwnA8NVKMrOTsxXI9NVCKp+TtxnM+NU+KpeXuyHU/NU6JpObvyXY/NU2Ioebwyng/NUyHn+fxy3lANUuGm+fyzHpBNUqFmObzzXtCNUmEluX0znxDNUiDleT10H1ENUd/k+T20X5FNUZ+keP30n9GNUV9j+L41IBHNUQVAAA=";
@@ -1142,9 +1263,9 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSetting
 
       <div className="border-t border-[#1c1c1c]" />
 
-      {/* Bell Volume */}
+      {/* Alarm Volume */}
       <div>
-        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-700 mb-4">Bell Volume</p>
+        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-700 mb-4">Alarm Volume</p>
         <div className="flex items-center gap-4">
           <input
             type="range"
@@ -1166,6 +1287,28 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSetting
               <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
             </svg>
           </button>
+        </div>
+      </div>
+
+      <div className="border-t border-[#1c1c1c]" />
+
+      {/* Alarm Repetitions */}
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-700 mb-4">Alarm Repetitions</p>
+        <div className="flex items-center gap-2">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button
+              key={n}
+              onClick={() => setSettings(prev => ({ ...prev, alarmRepetitions: n }))}
+              className={`flex-1 h-9 rounded-full border text-xs font-bold tracking-widest transition-all active:scale-95 ${
+                settings.alarmRepetitions === n
+                  ? 'border-[#00ff88] text-[#00ff88] bg-[#00ff88]/5'
+                  : 'border-[#222] text-gray-500 hover:border-[#333] hover:text-white hover:bg-[#111]'
+              }`}
+            >
+              {n}
+            </button>
+          ))}
         </div>
       </div>
     </div>

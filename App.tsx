@@ -66,6 +66,7 @@ export default function App() {
   // Audio Context Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
   const previewCtxRef = useRef<AudioContext | null>(null);
+  const soundTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Change Detection Refs for Smart Reset
   const prevSettingsRef = useRef(settings);
@@ -149,7 +150,7 @@ export default function App() {
   }, [settings, timerState.phase, timerState.isRunning, getDurationForPhase]);
 
 
-  const playSound = useCallback(() => {
+  const playSound = useCallback(async () => {
     try {
       const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!ACtx) return;
@@ -157,7 +158,7 @@ export default function App() {
         audioCtxRef.current = new ACtx();
       }
       const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') await ctx.resume();
 
       const volume = settings.volume / 100;
       if (volume === 0) return;
@@ -308,7 +309,7 @@ export default function App() {
   }, [timerState.isRunning, timerState.startTime, timerState.remainingTimeAtPause, timerState.phase, getDurationForPhase]);
 
 
-  // Sound trigger
+  // Sound trigger (active tab: RAF-based)
   const hasPlayedSoundRef = useRef(false);
   useEffect(() => {
     if (displayTime <= 0 && !hasPlayedSoundRef.current && timerState.isRunning) {
@@ -319,6 +320,35 @@ export default function App() {
       hasPlayedSoundRef.current = false;
     }
   }, [displayTime, playSound, timerState.isRunning]);
+
+  // Sound trigger (background tab: setTimeout-based)
+  // requestAnimationFrame is paused in background tabs, so we schedule a
+  // setTimeout that fires at the exact wall-clock expiry time.
+  useEffect(() => {
+    if (soundTimeoutRef.current !== null) {
+      clearTimeout(soundTimeoutRef.current);
+      soundTimeoutRef.current = null;
+    }
+
+    if (timerState.isRunning && timerState.startTime !== null && timerState.remainingTimeAtPause > 0) {
+      const delay = timerState.startTime + timerState.remainingTimeAtPause - Date.now();
+      if (delay > 0) {
+        soundTimeoutRef.current = setTimeout(() => {
+          if (!hasPlayedSoundRef.current) {
+            playSound();
+            hasPlayedSoundRef.current = true;
+          }
+        }, delay);
+      }
+    }
+
+    return () => {
+      if (soundTimeoutRef.current !== null) {
+        clearTimeout(soundTimeoutRef.current);
+        soundTimeoutRef.current = null;
+      }
+    };
+  }, [timerState.isRunning, timerState.startTime, timerState.remainingTimeAtPause, playSound]);
 
 
   // --- Helper to Commit Segment ---

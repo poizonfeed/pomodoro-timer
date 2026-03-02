@@ -49,6 +49,11 @@
 - [x] Export session history as CSV (`fluorite-focus-YYYY-MM-DD.csv`) — one row per session with summary columns: id, name, date, start_time, end_time, duration_min, focus_min, short_break_min, long_break_min.
 - [x] JSON and CSV buttons added to the History modal footer, above "Clear All History".
 
+## ✅ Phase 8: Background Alarm Fix (v1.8)
+- [x] Alarm now fires correctly when the browser tab is in the background.
+- [x] Added a `setTimeout`-based backup alarm alongside the RAF loop — `requestAnimationFrame` is throttled/suspended in background tabs, so the RAF-based sound trigger was never reached; `setTimeout` fires reliably for minute-scale delays.
+- [x] `playSound` made async to properly `await ctx.resume()` before scheduling Web Audio nodes, ensuring audio plays when the `AudioContext` was suspended.
+
 ## 🚀 Future Roadmap
 - [ ] **Analytics Dashboard:** Visual charts (D3/Recharts) showing productivity trends over weeks/months.
 - [ ] **Desktop Notifications:** Browser notifications when a phase ends.

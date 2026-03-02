@@ -32,6 +32,7 @@ App (Root)
 - A `useEffect` with `requestAnimationFrame` calculates `Date.now() - startTime`.
 - Updates `displayTime`, `isOverflowing`, and `currentSegmentElapsed` every frame (~60fps).
 - `displayTime` and `isOverflowing` feed `TimerDisplay`; `currentSegmentElapsed` feeds `Timeline`.
+- `requestAnimationFrame` is throttled/paused in background tabs, so a parallel `setTimeout`-based effect schedules the alarm at the exact wall-clock expiry time (`startTime + remainingTimeAtPause`). This ensures the alarm fires even when the tab is not active. The two triggers share `hasPlayedSoundRef` to prevent double-play.
 
 ### 2. The Timeline (Dual Mode)
 - **Running:** Renders a slim single-phase progress slider. Fill % = `currentSegmentElapsed / totalPhaseDuration`. Color matches the active phase (green = Focus, blue = Break).

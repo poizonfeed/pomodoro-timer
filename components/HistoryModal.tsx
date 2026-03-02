@@ -2,6 +2,16 @@ import React, { useState } from 'react';
 import { HistoryEntry, Phase } from '../types';
 import { Timeline } from './Timeline';
 
+function triggerDownload(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 interface HistoryModalProps {
   history: HistoryEntry[];
   onClose: () => void;
@@ -16,6 +26,43 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
 
   const toggleExpand = (id: string) => {
     setExpandedId(prev => prev === id ? null : id);
+  };
+
+  const dateStamp = new Date().toISOString().slice(0, 10);
+
+  const handleExportJSON = () => {
+    triggerDownload(
+      JSON.stringify(history, null, 2),
+      `fluorite-focus-${dateStamp}.json`,
+      'application/json'
+    );
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['id', 'name', 'date', 'start_time', 'end_time', 'duration_min', 'focus_min', 'short_break_min', 'long_break_min'];
+    const rows = history.map(entry => {
+      const firstSeg = entry.segments?.[0];
+      const startTs = firstSeg ? firstSeg.timestamp - firstSeg.duration : entry.timestamp - entry.duration * 60000;
+      const sumMs = (phase: Phase) =>
+        (entry.segments ?? []).filter(s => s.type === phase).reduce((acc, s) => acc + s.duration, 0);
+      const cols = [
+        entry.id,
+        `"${entry.name.replace(/"/g, '""')}"`,
+        new Date(entry.timestamp).toLocaleDateString(),
+        new Date(startTs).toLocaleTimeString(),
+        new Date(entry.timestamp).toLocaleTimeString(),
+        entry.duration,
+        Math.round(sumMs(Phase.FOCUS) / 60000),
+        Math.round(sumMs(Phase.SHORT_BREAK) / 60000),
+        Math.round(sumMs(Phase.LONG_BREAK) / 60000),
+      ];
+      return cols.join(',');
+    });
+    triggerDownload(
+      [headers.join(','), ...rows].join('\n'),
+      `fluorite-focus-${dateStamp}.csv`,
+      'text/csv'
+    );
   };
 
   return (
@@ -104,9 +151,27 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
 
         {/* Footer */}
         {history.length > 0 && (
-            <div className="p-4 border-t border-[#222] bg-[#0a0a0a]">
-                <button 
-                  onClick={() => setIsClearAllConfirm(true)} 
+            <div className="p-4 border-t border-[#222] bg-[#0a0a0a] space-y-2">
+                <div className="flex gap-2">
+                    <button
+                      onClick={handleExportJSON}
+                      className="flex-1 py-2.5 rounded border border-[#333] text-gray-400 hover:text-white hover:border-[#555] hover:bg-[#1a1a1a] text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                      title="Download history as JSON"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      JSON
+                    </button>
+                    <button
+                      onClick={handleExportCSV}
+                      className="flex-1 py-2.5 rounded border border-[#333] text-gray-400 hover:text-white hover:border-[#555] hover:bg-[#1a1a1a] text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                      title="Download history as CSV"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      CSV
+                    </button>
+                </div>
+                <button
+                  onClick={() => setIsClearAllConfirm(true)}
                   className="w-full py-3 rounded border border-red-900/30 text-red-700 hover:bg-red-900/10 hover:border-red-800 hover:text-red-500 text-xs font-bold uppercase tracking-widest transition-all"
                 >
                     Clear All History

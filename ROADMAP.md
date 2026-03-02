@@ -44,9 +44,13 @@
 - [x] Preview sound stops instantly when the settings panel is closed (dedicated `AudioContext` per preview, closed on panel hide).
 - [x] Preview button debounced — cannot overlap with itself.
 
+## ✅ Phase 7: Data Portability (v1.7)
+- [x] Export session history as JSON (`fluorite-focus-YYYY-MM-DD.json`) — full `HistoryEntry[]` dump including all segments.
+- [x] Export session history as CSV (`fluorite-focus-YYYY-MM-DD.csv`) — one row per session with summary columns: id, name, date, start_time, end_time, duration_min, focus_min, short_break_min, long_break_min.
+- [x] JSON and CSV buttons added to the History modal footer, above "Clear All History".
+
 ## 🚀 Future Roadmap
 - [ ] **Analytics Dashboard:** Visual charts (D3/Recharts) showing productivity trends over weeks/months.
-- [ ] **Data Portability:** Export history to CSV or JSON.
 - [ ] **Desktop Notifications:** Browser notifications when a phase ends.
 - [ ] **Custom Themes:** Additional high-contrast color schemes (e.g., Amber, Cobalt).
 - [ ] **Task List:** Simple integrated todo list for the current session.

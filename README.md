@@ -13,6 +13,7 @@ A high-fidelity, true-black Pomodoro timer designed for users who love minimalis
 - **Persisted State**: Never lose your timer progress or settings on reload.
 - **Keyboard Shortcuts**: Space to toggle, R to stop/reset, Esc to open menu/interrupt.
 - **History**: Track past sessions with expandable timelines, delete individual entries, or clear all.
+- **Data Export**: Download your session history as JSON (full data) or CSV (one row per session) directly from the History modal.
 
 ## Quick Start
 

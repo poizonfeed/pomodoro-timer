@@ -28,7 +28,7 @@ Fluorite Focus is a high-contrast, professional-grade Pomodoro timer built with 
 ## Project Structure
 - `/App.tsx`: Main application logic and state orchestration.
 - `/components/Controls.tsx`: Start / Pause / Resume / Stop / Next Phase buttons.
-- `/components/HistoryModal.tsx`: Past sessions list with expandable timelines and delete controls.
+- `/components/HistoryModal.tsx`: Past sessions list with expandable timelines, delete controls, and export buttons (JSON / CSV).
 - `/components/Modal.tsx`: "Session Interrupted" distraction modal.
 - `/components/SettingsMenu.tsx`: Collapsible settings panel (timer durations + alarm volume + alarm repetitions). Toggled by a gear icon button in the header.
 - `/components/SettingsPanel.tsx`: Original always-visible duration sliders — **unused**, superseded by SettingsMenu.

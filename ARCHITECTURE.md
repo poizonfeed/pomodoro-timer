@@ -67,7 +67,7 @@ App (Root)
 - **Timeline:** Dual-mode component. Running mode: live progress bar. Paused/stopped mode: full segmented history with stats and legend. Accepts `totalPhaseDuration` prop to compute fill percentage.
 - **Controls:** Determines which button to show (Start / Resume / Pause / Next Phase) based on `isRunning`, `isOverflowing`, `hasStarted`, and `phase`. "Stop Session" is a secondary link-style button below the main row.
 - **SettingsMenu:** Collapsible settings panel. Three sections separated by dividers: (1) timer duration sliders (Focus 1–60m, Short Break 1–15m, Long Break 1–30m); (2) alarm volume slider (0–100, step 10) with a preview button; (3) alarm repetitions — five pill buttons (1–5) that control how many times the alarm fires at phase end. Multi-word labels stack vertically for consistent slider alignment.
-- **HistoryModal:** Data management for past sessions — expandable per-session timelines (reuses `Timeline`), individual delete with confirmation overlay, clear all with confirmation overlay.
+- **HistoryModal:** Data management for past sessions — expandable per-session timelines (reuses `Timeline`), individual delete with confirmation overlay, clear all with confirmation overlay, export to JSON (full dump) or CSV (summary row per session).
 - **Modal:** "Session Interrupted" prompt with three actions: Restart Session, Take a Break, Close/Resume.
 
 ## Key Props: Timeline

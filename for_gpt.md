@@ -1,7 +1,7 @@
 # for_gpt.md - Full Project Source
 
 This file contains the complete source code for the Fluorite Focus project.
-Last updated: 2026-02-26
+Last updated: 2026-03-02
 
 ## File Tree
 - `package.json`
@@ -1031,6 +1031,16 @@ import React, { useState } from 'react';
 import { HistoryEntry, Phase } from '../types';
 import { Timeline } from './Timeline';
 
+function triggerDownload(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 interface HistoryModalProps {
   history: HistoryEntry[];
   onClose: () => void;
@@ -1045,6 +1055,43 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
 
   const toggleExpand = (id: string) => {
     setExpandedId(prev => prev === id ? null : id);
+  };
+
+  const dateStamp = new Date().toISOString().slice(0, 10);
+
+  const handleExportJSON = () => {
+    triggerDownload(
+      JSON.stringify(history, null, 2),
+      `fluorite-focus-${dateStamp}.json`,
+      'application/json'
+    );
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['id', 'name', 'date', 'start_time', 'end_time', 'duration_min', 'focus_min', 'short_break_min', 'long_break_min'];
+    const rows = history.map(entry => {
+      const firstSeg = entry.segments?.[0];
+      const startTs = firstSeg ? firstSeg.timestamp - firstSeg.duration : entry.timestamp - entry.duration * 60000;
+      const sumMs = (phase: Phase) =>
+        (entry.segments ?? []).filter(s => s.type === phase).reduce((acc, s) => acc + s.duration, 0);
+      const cols = [
+        entry.id,
+        `"${entry.name.replace(/"/g, '""')}"`,
+        new Date(entry.timestamp).toLocaleDateString(),
+        new Date(startTs).toLocaleTimeString(),
+        new Date(entry.timestamp).toLocaleTimeString(),
+        entry.duration,
+        Math.round(sumMs(Phase.FOCUS) / 60000),
+        Math.round(sumMs(Phase.SHORT_BREAK) / 60000),
+        Math.round(sumMs(Phase.LONG_BREAK) / 60000),
+      ];
+      return cols.join(',');
+    });
+    triggerDownload(
+      [headers.join(','), ...rows].join('\n'),
+      `fluorite-focus-${dateStamp}.csv`,
+      'text/csv'
+    );
   };
 
   return (
@@ -1083,7 +1130,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                       <div>
                           <div className="font-bold text-white text-sm mb-1">{entry.name}</div>
                           <div className="text-[10px] text-gray-500 uppercase tracking-wider font-mono">
-                            {new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' })}
+                            {new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {entry.segments?.length > 0 ? new Date(entry.segments[0].timestamp - entry.segments[0].duration).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' }) + ' → ' : ''}{new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' })}
                           </div>
                       </div>
                       <div className="flex items-center gap-2 pl-4">
@@ -1091,6 +1138,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                             <span className="font-mono text-[#00ff88] text-lg font-bold block leading-none">{entry.duration}</span>
                             <span className="text-[9px] text-gray-600 uppercase tracking-widest block text-right">min</span>
                           </div>
+
+                          {/* Timeline Toggle Button */}
                           {hasTimeline && (
                              <button
                                onClick={() => toggleExpand(entry.id)}
@@ -1100,6 +1149,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                              </button>
                           )}
+
+                          {/* Delete Button */}
                           <button
                             onClick={() => setDeleteId(entry.id)}
                             className="w-8 h-8 flex items-center justify-center rounded text-gray-600 hover:text-red-500 hover:bg-[#222] transition-colors"
@@ -1109,6 +1160,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                           </button>
                       </div>
                   </div>
+
+                  {/* Expanded Timeline View */}
                   {isExpanded && hasTimeline && (
                     <div className="border-t border-[#222] bg-[#050505] p-4 animate-in fade-in slide-in-from-top-1">
                        <Timeline
@@ -1127,7 +1180,25 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
 
         {/* Footer */}
         {history.length > 0 && (
-            <div className="p-4 border-t border-[#222] bg-[#0a0a0a]">
+            <div className="p-4 border-t border-[#222] bg-[#0a0a0a] space-y-2">
+                <div className="flex gap-2">
+                    <button
+                      onClick={handleExportJSON}
+                      className="flex-1 py-2.5 rounded border border-[#333] text-gray-400 hover:text-white hover:border-[#555] hover:bg-[#1a1a1a] text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                      title="Download history as JSON"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      JSON
+                    </button>
+                    <button
+                      onClick={handleExportCSV}
+                      className="flex-1 py-2.5 rounded border border-[#333] text-gray-400 hover:text-white hover:border-[#555] hover:bg-[#1a1a1a] text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                      title="Download history as CSV"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      CSV
+                    </button>
+                </div>
                 <button
                   onClick={() => setIsClearAllConfirm(true)}
                   className="w-full py-3 rounded border border-red-900/30 text-red-700 hover:bg-red-900/10 hover:border-red-800 hover:text-red-500 text-xs font-bold uppercase tracking-widest transition-all"
@@ -1137,7 +1208,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
             </div>
         )}
 
-        {/* Delete Confirmation Overlay */}
+        {/* Delete Confirmation Overlay (Individual) */}
         {deleteId && (
             <div className="absolute inset-0 bg-black/95 flex items-center justify-center z-20 flex-col p-8 text-center animate-in fade-in duration-200">
                 <div className="w-12 h-12 rounded-full bg-red-900/20 text-red-500 flex items-center justify-center mb-4 border border-red-900/50">
@@ -1146,8 +1217,18 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                 <h3 className="text-white font-bold text-lg mb-2">Delete this entry?</h3>
                 <p className="text-gray-500 text-sm mb-6 max-w-[200px] mx-auto leading-relaxed">This record will be permanently removed from your local history.</p>
                 <div className="flex gap-3 w-full">
-                    <button onClick={() => setDeleteId(null)} className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222] transition-colors">Cancel</button>
-                    <button onClick={() => { onDelete(deleteId); setDeleteId(null); }} className="flex-1 py-3 bg-red-600 rounded text-white text-xs font-bold uppercase hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-all">Delete</button>
+                    <button
+                        onClick={() => setDeleteId(null)}
+                        className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222] transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => { onDelete(deleteId); setDeleteId(null); }}
+                        className="flex-1 py-3 bg-red-600 rounded text-white text-xs font-bold uppercase hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-all"
+                    >
+                        Delete
+                    </button>
                 </div>
             </div>
         )}
@@ -1158,8 +1239,18 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, on
                 <h3 className="text-white font-bold text-lg mb-2 text-red-500">Clear All History?</h3>
                 <p className="text-gray-500 text-sm mb-6">You are about to delete all {history.length} recorded sessions. This cannot be undone.</p>
                 <div className="flex gap-3 w-full">
-                    <button onClick={() => setIsClearAllConfirm(false)} className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222]">Cancel</button>
-                    <button onClick={() => { onClear(); setIsClearAllConfirm(false); }} className="flex-1 py-3 bg-red-900/80 border border-red-700 rounded text-white text-xs font-bold uppercase hover:bg-red-800">Yes, Clear All</button>
+                    <button
+                        onClick={() => setIsClearAllConfirm(false)}
+                        className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222]"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => { onClear(); setIsClearAllConfirm(false); }}
+                        className="flex-1 py-3 bg-red-900/80 border border-red-700 rounded text-white text-xs font-bold uppercase hover:bg-red-800"
+                    >
+                        Yes, Clear All
+                    </button>
                 </div>
              </div>
         )}

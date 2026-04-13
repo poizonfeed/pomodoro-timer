@@ -67,6 +67,7 @@ export default function App() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const previewCtxRef = useRef<AudioContext | null>(null);
   const soundTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTickSecondRef = useRef(-1);
   
   // Change Detection Refs for Smart Reset
   const prevSettingsRef = useRef(settings);
@@ -208,6 +209,40 @@ export default function App() {
     }
   }, [settings.volume, settings.alarmRepetitions]);
 
+  // Overflow tick — a soft, gentle tone that fires every second during overflow.
+  // Uses a pure sine at C5 (523 Hz) with a whisper-quiet gain and smooth decay.
+  const playTick = useCallback(() => {
+    try {
+      const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!ACtx) return;
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new ACtx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const volume = settings.tickingVolume / 100;
+      if (volume === 0) return;
+      // Very low peak gain — much quieter than the alarm bell
+      const peakGain = Math.pow(volume, 2) * 0.09;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now); // C5 — warm, unobtrusive
+      osc.connect(env);
+      env.connect(ctx.destination);
+      env.gain.setValueAtTime(0, now);
+      env.gain.linearRampToValueAtTime(peakGain, now + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } catch (e) {
+      console.warn('Tick audio failed', e);
+    }
+  }, [settings.tickingVolume]);
+
   // Preview: always plays exactly one chime in its own AudioContext so it can be
   // stopped instantly when the settings panel closes.
   const isPreviewBusyRef = useRef(false);
@@ -272,6 +307,37 @@ export default function App() {
     }
   }, [settings.volume]);
 
+  // Preview tick — plays one tick in the same previewCtxRef so it stops on panel close
+  const previewTick = useCallback(() => {
+    // Reuse the preview context approach: close any open preview first
+    stopPreview();
+    try {
+      const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!ACtx) return;
+      const ctx = new ACtx();
+      previewCtxRef.current = ctx;
+
+      const volume = settings.tickingVolume / 100;
+      if (volume === 0) return;
+      const peakGain = Math.pow(volume, 2) * 0.09;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.connect(env);
+      env.connect(ctx.destination);
+      env.gain.setValueAtTime(0, now);
+      env.gain.linearRampToValueAtTime(peakGain, now + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } catch (e) {
+      console.warn('Tick preview failed', e);
+    }
+  }, [settings.tickingVolume, stopPreview]);
+
   // Kill preview the moment the settings panel closes
   useEffect(() => {
     if (!isSettingsOpen) stopPreview();
@@ -318,6 +384,7 @@ export default function App() {
     }
     if (displayTime > 0) {
       hasPlayedSoundRef.current = false;
+      lastTickSecondRef.current = -1;
     }
   }, [displayTime, playSound, timerState.isRunning]);
 
@@ -350,6 +417,24 @@ export default function App() {
     };
   }, [timerState.isRunning, timerState.startTime, timerState.remainingTimeAtPause, playSound]);
 
+
+  // Overflow tick effect — fires playTick once per second while overflowing,
+  // but only after the alarm has fully finished playing.
+  // Alarm total duration: (reps-1) × 2.8s spacing + last bell pair (0 + 0.6s gap + 2.0s decay) = (reps-1)*2.8 + 2.65s
+  useEffect(() => {
+    if (!isOverflowing || !timerState.isRunning || !settings.tickingEnabled) {
+      lastTickSecondRef.current = -1;
+      return;
+    }
+    const alarmDurationSec = (settings.alarmRepetitions - 1) * 2.8 + 2.65;
+    const tickStartSecond = Math.ceil(alarmDurationSec);
+
+    const overflowSecond = Math.floor(Math.abs(displayTime) / 1000);
+    if (overflowSecond >= tickStartSecond && overflowSecond !== lastTickSecondRef.current) {
+      lastTickSecondRef.current = overflowSecond;
+      playTick();
+    }
+  }, [displayTime, isOverflowing, timerState.isRunning, settings.tickingEnabled, settings.alarmRepetitions, playTick]);
 
   // --- Helper to Commit Segment ---
   const commitSegment = (status: 'completed' | 'interrupted') => {
@@ -408,6 +493,7 @@ export default function App() {
     setDisplayTime(duration);
     setIsOverflowing(false);
     hasPlayedSoundRef.current = false;
+    lastTickSecondRef.current = -1;
     setCurrentSegmentElapsed(0);
   }, [getDurationForPhase, timerState.phase, currentSegmentElapsed]);
 
@@ -517,6 +603,7 @@ export default function App() {
     setDisplayTime(nextDur * 60 * 1000);
     setIsOverflowing(false);
     hasPlayedSoundRef.current = false;
+    lastTickSecondRef.current = -1;
     setCurrentSegmentElapsed(0);
   }, [timerState.phase, timerState.cycleCount, isOverflowing, displayTime, currentSegmentElapsed, settings]);
 
@@ -584,21 +671,13 @@ export default function App() {
           if (isOverflowing) handleStopNext();
           else toggleTimer();
           break;
-        case 'KeyR':
-          handleResetClick();
-          break;
-        case 'Escape':
-          if (isDistractionModalOpen) setIsDistractionModalOpen(false);
-          else if (isResetConfirmOpen) setIsResetConfirmOpen(false);
-          else if (isHistoryModalOpen) setIsHistoryModalOpen(false);
-          else handleStopNext();
-          break;
+
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleTimer, handleStopNext, isDistractionModalOpen, isResetConfirmOpen, isHistoryModalOpen, isOverflowing]);
+  }, [toggleTimer, handleStopNext, isOverflowing]);
 
   // --- Logic to check if session has started ---
   const hasStarted = displayTime < getDurationForPhase(timerState.phase) * 60 * 1000;
@@ -639,6 +718,7 @@ export default function App() {
           settings={settings}
           setSettings={setSettings}
           onPreviewSound={previewSound}
+          onPreviewTick={previewTick}
         />
       )}
 
@@ -651,7 +731,7 @@ export default function App() {
         
         {/* Shortcuts Hint */}
         <div className="absolute bottom-[-2rem] text-[10px] text-gray-700 uppercase font-bold tracking-[0.3em] pointer-events-none opacity-40">
-          [Space] {isOverflowing ? 'Next' : 'Pause'} · [R] End Session · [Esc] Stop
+          [Space] {isOverflowing ? 'Next' : 'Pause'}
         </div>
       </main>
 

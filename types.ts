@@ -10,6 +10,8 @@ export interface Settings {
   longBreakDuration: number;
   volume: number;
   alarmRepetitions: number;
+  tickingEnabled: boolean;
+  tickingVolume: number;
 }
 
 export interface TimerState {

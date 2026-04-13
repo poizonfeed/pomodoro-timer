@@ -6,6 +6,8 @@ export const DEFAULT_SETTINGS: Settings = {
   longBreakDuration: 15,
   volume: 50,
   alarmRepetitions: 1,
+  tickingEnabled: false,
+  tickingVolume: 30,
 };
 
 // Longer alarm sound (simulated repetitive beep)

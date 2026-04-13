@@ -1,7 +1,7 @@
 # for_gpt.md - Full Project Source
 
 This file contains the complete source code for the Fluorite Focus project.
-Last updated: 2026-03-02
+Last updated: 2026-04-13
 
 ## File Tree
 - `package.json`
@@ -153,30 +153,30 @@ export default defineConfig(({ mode }) => {
         font-variant-numeric: tabular-nums;
       }
       @keyframes resume-pulse {
-        0%   { transform: scale(1);    box-shadow: 0 0 0px rgba(255,255,255,0);   filter: brightness(1);   }
-        50%  { transform: scale(1.05); box-shadow: 0 0 35px rgba(255,255,255,0.4); filter: brightness(1.1); }
-        100% { transform: scale(1);    box-shadow: 0 0 0px rgba(255,255,255,0);   filter: brightness(1);   }
+        0% { transform: scale(1); box-shadow: 0 0 0px rgba(255, 255, 255, 0); filter: brightness(1); }
+        50% { transform: scale(1.05); box-shadow: 0 0 35px rgba(255, 255, 255, 0.4); filter: brightness(1.1); }
+        100% { transform: scale(1); box-shadow: 0 0 0px rgba(255, 255, 255, 0); filter: brightness(1); }
       }
       .animate-resume-pulse {
         animation: resume-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         will-change: transform, box-shadow;
       }
     </style>
-    <script type="importmap">
-    {
-      "imports": {
-        "react/": "https://esm.sh/react@^19.2.4/",
-        "react": "https://esm.sh/react@^19.2.4",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
-      }
-    }
-    </script>
-    <link rel="stylesheet" href="/index.css">
-  </head>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>
 ```
 
@@ -203,6 +203,74 @@ root.render(
 
 ---
 
+### types.ts
+```ts
+export enum Phase {
+  FOCUS = 'FOCUS',
+  SHORT_BREAK = 'SHORT_BREAK',
+  LONG_BREAK = 'LONG_BREAK',
+}
+
+export interface Settings {
+  focusDuration: number;
+  shortBreakDuration: number;
+  longBreakDuration: number;
+  volume: number;
+  alarmRepetitions: number;
+  tickingEnabled: boolean;
+  tickingVolume: number;
+}
+
+export interface TimerState {
+  phase: Phase;
+  isRunning: boolean;
+  startTime: number | null; // Timestamp when timer started/resumed
+  remainingTimeAtPause: number | null; // Milliseconds remaining when paused
+  cycleCount: number; // To track 4x focus cycles
+}
+
+export interface TimelineSegment {
+  id: string;
+  type: Phase;
+  duration: number; // ms spent in this segment
+  status: 'completed' | 'interrupted' | 'ongoing'; // ongoing is used for live rendering
+  timestamp: number;
+}
+
+export interface HistoryEntry {
+  id: string;
+  name: string;
+  timestamp: number;
+  duration: number;
+  segments: TimelineSegment[];
+}
+```
+
+---
+
+### constants.ts
+```ts
+import { Phase, Settings } from './types';
+
+export const DEFAULT_SETTINGS: Settings = {
+  focusDuration: 25,
+  shortBreakDuration: 5,
+  longBreakDuration: 15,
+  volume: 50,
+  alarmRepetitions: 1,
+  tickingEnabled: false,
+  tickingVolume: 30,
+};
+
+export const PHASE_LABELS: Record<Phase, string> = {
+  [Phase.FOCUS]: 'Focus',
+  [Phase.SHORT_BREAK]: 'Short Break',
+  [Phase.LONG_BREAK]: 'Long Break',
+};
+```
+
+---
+
 ### App.tsx
 ```tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -222,11 +290,7 @@ const HISTORY_KEY = 'fluoritefocus_history';
 export default function App() {
   // --- State ---
   const [sessionName, setSessionName] = useState('');
-
-  // Settings
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-
-  // Timer State
   const [timerState, setTimerState] = useState<TimerState>({
     phase: Phase.FOCUS,
     isRunning: false,
@@ -234,12 +298,8 @@ export default function App() {
     remainingTimeAtPause: DEFAULT_SETTINGS.focusDuration * 60 * 1000,
     cycleCount: 0,
   });
-
-  // Derived display state
   const [displayTime, setDisplayTime] = useState(DEFAULT_SETTINGS.focusDuration * 60 * 1000);
   const [isOverflowing, setIsOverflowing] = useState(false);
-
-  // Timeline State
   const [segments, setSegments] = useState<TimelineSegment[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -249,8 +309,6 @@ export default function App() {
     }
     return [];
   });
-
-  // History State
   const [history, setHistory] = useState<HistoryEntry[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -260,11 +318,7 @@ export default function App() {
     }
     return [];
   });
-
-  // Current elapsed
   const [currentSegmentElapsed, setCurrentSegmentElapsed] = useState(0);
-
-  // UI State
   const [isDistractionModalOpen, setIsDistractionModalOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -273,6 +327,8 @@ export default function App() {
   // Audio Context Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
   const previewCtxRef = useRef<AudioContext | null>(null);
+  const soundTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTickSecondRef = useRef(-1);
 
   // Change Detection Refs for Smart Reset
   const prevSettingsRef = useRef(settings);
@@ -327,7 +383,6 @@ export default function App() {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   }, [history]);
 
-  // Helper to get duration
   const getDurationForPhase = useCallback((phase: Phase): number => {
     switch (phase) {
       case Phase.FOCUS: return settings.focusDuration;
@@ -340,11 +395,9 @@ export default function App() {
   useEffect(() => {
     const settingsChanged = prevSettingsRef.current !== settings;
     const phaseChanged = prevPhaseRef.current !== timerState.phase;
-
     if (settingsChanged || phaseChanged) {
         prevSettingsRef.current = settings;
         prevPhaseRef.current = timerState.phase;
-
         if (!timerState.isRunning) {
             const newDuration = getDurationForPhase(timerState.phase) * 60 * 1000;
             setTimerState(prev => ({ ...prev, remainingTimeAtPause: newDuration }));
@@ -355,8 +408,8 @@ export default function App() {
     }
   }, [settings, timerState.phase, timerState.isRunning, getDurationForPhase]);
 
-
-  const playSound = useCallback(() => {
+  // Alarm sound — two-tone descending airplane bell (A5 → E5) with inharmonic overtone
+  const playSound = useCallback(async () => {
     try {
       const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!ACtx) return;
@@ -364,20 +417,16 @@ export default function App() {
         audioCtxRef.current = new ACtx();
       }
       const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') await ctx.resume();
 
       const volume = settings.volume / 100;
       if (volume === 0) return;
-
-      // Power curve so 50% volume actually sounds like 50%, not 100%
       const peakGain = Math.pow(volume, 2) * 0.5;
       const reps = settings.alarmRepetitions;
-      const repSpacing = 2.8; // seconds between repetition starts
+      const repSpacing = 2.8;
 
-      // Airplane cabin bell: fundamental sine + fast-decaying inharmonic overtone
       const playBell = (freq: number, startAt: number) => {
         const decayTime = 2.0;
-
         const osc = ctx.createOscillator();
         const env = ctx.createGain();
         osc.type = 'sine';
@@ -390,7 +439,6 @@ export default function App() {
         osc.start(startAt);
         osc.stop(startAt + decayTime + 0.05);
 
-        // Inharmonic overtone at 2.756× for bell-like "clang" quality (fades quickly)
         const osc2 = ctx.createOscillator();
         const env2 = ctx.createGain();
         osc2.type = 'sine';
@@ -406,16 +454,47 @@ export default function App() {
 
       for (let i = 0; i < reps; i++) {
         const base = ctx.currentTime + i * repSpacing;
-        playBell(880, base);          // A5 — high note
-        playBell(659.25, base + 0.6); // E5 — low note (perfect fifth below)
+        playBell(880, base);
+        playBell(659.25, base + 0.6);
       }
     } catch (e) {
       console.warn('Audio play failed', e);
     }
   }, [settings.volume, settings.alarmRepetitions]);
 
-  // Preview: always plays exactly one chime in its own AudioContext so it can be
-  // stopped instantly when the settings panel closes.
+  // Overflow tick — soft C5 sine tone, whisper-quiet, fires once per second during overflow
+  const playTick = useCallback(() => {
+    try {
+      const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!ACtx) return;
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new ACtx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const volume = settings.tickingVolume / 100;
+      if (volume === 0) return;
+      const peakGain = Math.pow(volume, 2) * 0.09;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.connect(env);
+      env.connect(ctx.destination);
+      env.gain.setValueAtTime(0, now);
+      env.gain.linearRampToValueAtTime(peakGain, now + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } catch (e) {
+      console.warn('Tick audio failed', e);
+    }
+  }, [settings.tickingVolume]);
+
+  // Preview: plays one chime in its own AudioContext so it stops instantly on panel close
   const isPreviewBusyRef = useRef(false);
 
   const stopPreview = useCallback(() => {
@@ -429,9 +508,7 @@ export default function App() {
   const previewSound = useCallback(() => {
     if (isPreviewBusyRef.current) return;
     isPreviewBusyRef.current = true;
-    // 2.7 s covers: bell2 starts at 0.6 s, decays 2.0 s + small buffer
     setTimeout(() => { isPreviewBusyRef.current = false; }, 2700);
-
     try {
       const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!ACtx) return;
@@ -444,7 +521,6 @@ export default function App() {
 
       const playBell = (freq: number, startAt: number) => {
         const decayTime = 2.0;
-
         const osc = ctx.createOscillator();
         const env = ctx.createGain();
         osc.type = 'sine';
@@ -470,7 +546,6 @@ export default function App() {
         osc2.stop(startAt + decayTime * 0.35 + 0.05);
       };
 
-      // Always one chime — preview never depends on alarmRepetitions
       playBell(880, ctx.currentTime);
       playBell(659.25, ctx.currentTime + 0.6);
     } catch (e) {
@@ -478,44 +553,60 @@ export default function App() {
     }
   }, [settings.volume]);
 
+  // Preview tick — plays one tick in previewCtxRef so it stops on panel close
+  const previewTick = useCallback(() => {
+    stopPreview();
+    try {
+      const ACtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!ACtx) return;
+      const ctx = new ACtx();
+      previewCtxRef.current = ctx;
+
+      const volume = settings.tickingVolume / 100;
+      if (volume === 0) return;
+      const peakGain = Math.pow(volume, 2) * 0.09;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.connect(env);
+      env.connect(ctx.destination);
+      env.gain.setValueAtTime(0, now);
+      env.gain.linearRampToValueAtTime(peakGain, now + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } catch (e) {
+      console.warn('Tick preview failed', e);
+    }
+  }, [settings.tickingVolume, stopPreview]);
+
   // Kill preview the moment the settings panel closes
   useEffect(() => {
     if (!isSettingsOpen) stopPreview();
   }, [isSettingsOpen, stopPreview]);
 
-  // --- Timer Tick ---
-
+  // --- Timer Tick (RAF loop) ---
   useEffect(() => {
     let animationFrameId: number;
-
     const tick = () => {
-      if (!timerState.isRunning || !timerState.startTime) {
-        return;
-      }
-
+      if (!timerState.isRunning || !timerState.startTime) return;
       const now = Date.now();
       const elapsed = now - timerState.startTime;
       const timeLeft = (timerState.remainingTimeAtPause || 0) - elapsed;
-
       setDisplayTime(timeLeft);
       setIsOverflowing(timeLeft <= 0);
-
       const targetDuration = getDurationForPhase(timerState.phase) * 60 * 1000;
-      const segmentElapsed = targetDuration - timeLeft;
-      setCurrentSegmentElapsed(segmentElapsed);
-
+      setCurrentSegmentElapsed(targetDuration - timeLeft);
       animationFrameId = requestAnimationFrame(tick);
     };
-
-    if (timerState.isRunning) {
-      animationFrameId = requestAnimationFrame(tick);
-    }
-
+    if (timerState.isRunning) animationFrameId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animationFrameId);
   }, [timerState.isRunning, timerState.startTime, timerState.remainingTimeAtPause, timerState.phase, getDurationForPhase]);
 
-
-  // Sound trigger
+  // Sound trigger (active tab: RAF-based)
   const hasPlayedSoundRef = useRef(false);
   useEffect(() => {
     if (displayTime <= 0 && !hasPlayedSoundRef.current && timerState.isRunning) {
@@ -524,9 +615,50 @@ export default function App() {
     }
     if (displayTime > 0) {
       hasPlayedSoundRef.current = false;
+      lastTickSecondRef.current = -1;
     }
   }, [displayTime, playSound, timerState.isRunning]);
 
+  // Sound trigger (background tab: setTimeout-based)
+  useEffect(() => {
+    if (soundTimeoutRef.current !== null) {
+      clearTimeout(soundTimeoutRef.current);
+      soundTimeoutRef.current = null;
+    }
+    if (timerState.isRunning && timerState.startTime !== null && timerState.remainingTimeAtPause > 0) {
+      const delay = timerState.startTime + timerState.remainingTimeAtPause - Date.now();
+      if (delay > 0) {
+        soundTimeoutRef.current = setTimeout(() => {
+          if (!hasPlayedSoundRef.current) {
+            playSound();
+            hasPlayedSoundRef.current = true;
+          }
+        }, delay);
+      }
+    }
+    return () => {
+      if (soundTimeoutRef.current !== null) {
+        clearTimeout(soundTimeoutRef.current);
+        soundTimeoutRef.current = null;
+      }
+    };
+  }, [timerState.isRunning, timerState.startTime, timerState.remainingTimeAtPause, playSound]);
+
+  // Overflow tick effect — fires once per second during overflow, after alarm finishes.
+  // Tick start = ceil((reps-1) × 2.8 + 2.65) seconds after overflow begins.
+  useEffect(() => {
+    if (!isOverflowing || !timerState.isRunning || !settings.tickingEnabled) {
+      lastTickSecondRef.current = -1;
+      return;
+    }
+    const alarmDurationSec = (settings.alarmRepetitions - 1) * 2.8 + 2.65;
+    const tickStartSecond = Math.ceil(alarmDurationSec);
+    const overflowSecond = Math.floor(Math.abs(displayTime) / 1000);
+    if (overflowSecond >= tickStartSecond && overflowSecond !== lastTickSecondRef.current) {
+      lastTickSecondRef.current = overflowSecond;
+      playTick();
+    }
+  }, [displayTime, isOverflowing, timerState.isRunning, settings.tickingEnabled, settings.alarmRepetitions, playTick]);
 
   // --- Helper to Commit Segment ---
   const commitSegment = (status: 'completed' | 'interrupted') => {
@@ -543,59 +675,34 @@ export default function App() {
     setCurrentSegmentElapsed(0);
   };
 
-
   // --- Actions ---
 
   const toggleTimer = useCallback(() => {
     if (timerState.isRunning) {
-      // PAUSE
       const now = Date.now();
       const elapsed = now - (timerState.startTime || now);
       const newRemaining = (timerState.remainingTimeAtPause || 0) - elapsed;
-
-      setTimerState(prev => ({
-        ...prev,
-        isRunning: false,
-        startTime: null,
-        remainingTimeAtPause: newRemaining
-      }));
+      setTimerState(prev => ({ ...prev, isRunning: false, startTime: null, remainingTimeAtPause: newRemaining }));
     } else {
-      // START
-      setTimerState(prev => ({
-        ...prev,
-        isRunning: true,
-        startTime: Date.now(),
-      }));
+      setTimerState(prev => ({ ...prev, isRunning: true, startTime: Date.now() }));
     }
   }, [timerState.isRunning, timerState.startTime, timerState.remainingTimeAtPause]);
 
-  // "Restart Session" - Soft Reset (keeps timeline, cycle, phase)
   const restartCurrentSession = useCallback(() => {
-    if (currentSegmentElapsed > 0) {
-        commitSegment('interrupted');
-    }
-
+    if (currentSegmentElapsed > 0) commitSegment('interrupted');
     const duration = getDurationForPhase(timerState.phase) * 60 * 1000;
-    setTimerState(prev => ({
-      ...prev,
-      isRunning: false,
-      startTime: null,
-      remainingTimeAtPause: duration
-    }));
+    setTimerState(prev => ({ ...prev, isRunning: false, startTime: null, remainingTimeAtPause: duration }));
     setDisplayTime(duration);
     setIsOverflowing(false);
     hasPlayedSoundRef.current = false;
+    lastTickSecondRef.current = -1;
     setCurrentSegmentElapsed(0);
   }, [getDurationForPhase, timerState.phase, currentSegmentElapsed]);
 
-  // "Hard Reset" -> "Stop Session" logic
-  const handleResetClick = () => {
-    setIsResetConfirmOpen(true);
-  };
+  const handleResetClick = () => { setIsResetConfirmOpen(true); };
 
   const confirmFullReset = useCallback(() => {
       const finalSegments = [...segments];
-
       if (currentSegmentElapsed > 1000) {
           finalSegments.push({
             id: 'end-' + Date.now(),
@@ -605,12 +712,9 @@ export default function App() {
             timestamp: Date.now()
           });
       }
-
       const totalFocusMs = finalSegments.reduce((acc, s) => s.type === Phase.FOCUS ? acc + s.duration : acc, 0);
-
       if (totalFocusMs > 5000) {
           const totalMinutes = Math.max(1, Math.round(totalFocusMs / 60000));
-
           const newEntry: HistoryEntry = {
               id: Date.now().toString(),
               name: sessionName || 'Untitled Session',
@@ -620,17 +724,9 @@ export default function App() {
           };
           setHistory(prev => [newEntry, ...prev]);
       }
-
       setSegments([]);
-
       const duration = settings.focusDuration * 60 * 1000;
-      setTimerState({
-          phase: Phase.FOCUS,
-          cycleCount: 0,
-          isRunning: false,
-          startTime: null,
-          remainingTimeAtPause: duration
-      });
+      setTimerState({ phase: Phase.FOCUS, cycleCount: 0, isRunning: false, startTime: null, remainingTimeAtPause: duration });
       setDisplayTime(duration);
       setIsOverflowing(false);
       hasPlayedSoundRef.current = false;
@@ -638,136 +734,74 @@ export default function App() {
       setIsResetConfirmOpen(false);
   }, [settings.focusDuration, segments, currentSegmentElapsed, sessionName, timerState.phase]);
 
-
-  // Shared logic to proceed to the next phase
   const proceedToNextPhase = useCallback(() => {
     setIsDistractionModalOpen(false);
-
     const isFocus = timerState.phase === Phase.FOCUS;
     const isNaturalEnd = isOverflowing || displayTime <= 0;
-
     const status = (isNaturalEnd || !isFocus) ? 'completed' : 'interrupted';
-
     commitSegment(status);
 
     let nextPhase = Phase.FOCUS;
     let nextCycle = timerState.cycleCount;
-
     if (timerState.phase === Phase.FOCUS) {
-      if (timerState.cycleCount >= 3) {
-        nextPhase = Phase.LONG_BREAK;
-        nextCycle = 0;
-      } else {
-        nextPhase = Phase.SHORT_BREAK;
-        nextCycle = timerState.cycleCount + 1;
-      }
+      if (timerState.cycleCount >= 3) { nextPhase = Phase.LONG_BREAK; nextCycle = 0; }
+      else { nextPhase = Phase.SHORT_BREAK; nextCycle = timerState.cycleCount + 1; }
     } else {
       nextPhase = Phase.FOCUS;
-      if (timerState.phase === Phase.LONG_BREAK) {
-          nextCycle = 0;
-      }
+      if (timerState.phase === Phase.LONG_BREAK) nextCycle = 0;
     }
 
-    const nextDur = (nextPhase === Phase.SHORT_BREAK ? settings.shortBreakDuration :
-                     nextPhase === Phase.LONG_BREAK ? settings.longBreakDuration :
-                     settings.focusDuration);
+    const nextDur = nextPhase === Phase.SHORT_BREAK ? settings.shortBreakDuration :
+                    nextPhase === Phase.LONG_BREAK ? settings.longBreakDuration :
+                    settings.focusDuration;
 
-    setTimerState({
-      phase: nextPhase,
-      isRunning: false,
-      startTime: null,
-      remainingTimeAtPause: nextDur * 60 * 1000,
-      cycleCount: nextCycle
-    });
+    setTimerState({ phase: nextPhase, isRunning: false, startTime: null, remainingTimeAtPause: nextDur * 60 * 1000, cycleCount: nextCycle });
     setDisplayTime(nextDur * 60 * 1000);
     setIsOverflowing(false);
     hasPlayedSoundRef.current = false;
+    lastTickSecondRef.current = -1;
     setCurrentSegmentElapsed(0);
   }, [timerState.phase, timerState.cycleCount, isOverflowing, displayTime, currentSegmentElapsed, settings]);
 
-
   const handleStopNext = useCallback(() => {
-    if (isOverflowing) {
-        proceedToNextPhase();
-        return;
-    }
-
-    if (timerState.phase !== Phase.FOCUS) {
-        proceedToNextPhase();
-        return;
-    }
-
+    if (isOverflowing) { proceedToNextPhase(); return; }
+    if (timerState.phase !== Phase.FOCUS) { proceedToNextPhase(); return; }
     setTimerState(prev => {
         if (!prev.isRunning) return prev;
         const now = Date.now();
         const elapsed = now - (prev.startTime || now);
-        return {
-            ...prev,
-            isRunning: false,
-            startTime: null,
-            remainingTimeAtPause: (prev.remainingTimeAtPause || 0) - elapsed
-        };
+        return { ...prev, isRunning: false, startTime: null, remainingTimeAtPause: (prev.remainingTimeAtPause || 0) - elapsed };
     });
     setIsDistractionModalOpen(true);
-
   }, [isOverflowing, proceedToNextPhase, timerState.phase]);
 
-  // --- Modal Actions ---
-
-  const handleModalRestart = () => {
-    setIsDistractionModalOpen(false);
-    restartCurrentSession();
-  };
-
-  const handleModalClose = () => {
-    setIsDistractionModalOpen(false);
-  };
-
-  // --- History Actions ---
-  const handleDeleteHistory = (id: string) => {
-    setHistory(prev => prev.filter(h => h.id !== id));
-  };
-
-  const handleClearHistory = () => {
-    setHistory([]);
-    setIsHistoryModalOpen(false);
-  };
+  const handleModalRestart = () => { setIsDistractionModalOpen(false); restartCurrentSession(); };
+  const handleModalClose = () => { setIsDistractionModalOpen(false); };
+  const handleDeleteHistory = (id: string) => { setHistory(prev => prev.filter(h => h.id !== id)); };
+  const handleClearHistory = () => { setHistory([]); setIsHistoryModalOpen(false); };
 
   // --- Keyboard Shortcuts ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName || '')) return;
-
       switch(e.code) {
         case 'Space':
           e.preventDefault();
           if (isOverflowing) handleStopNext();
           else toggleTimer();
           break;
-        case 'KeyR':
-          handleResetClick();
-          break;
-        case 'Escape':
-          if (isDistractionModalOpen) setIsDistractionModalOpen(false);
-          else if (isResetConfirmOpen) setIsResetConfirmOpen(false);
-          else if (isHistoryModalOpen) setIsHistoryModalOpen(false);
-          else handleStopNext();
-          break;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleTimer, handleStopNext, isDistractionModalOpen, isResetConfirmOpen, isHistoryModalOpen, isOverflowing]);
+  }, [toggleTimer, handleStopNext, isOverflowing]);
 
-  // --- Logic to check if session has started ---
   const hasStarted = displayTime < getDurationForPhase(timerState.phase) * 60 * 1000;
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 selection:bg-[#00ff88] selection:text-black">
       {/* Header */}
       <header className="w-full max-w-md flex items-center mb-4 relative">
-        {/* Spacer to keep input visually centered */}
         <div className="w-9 flex-shrink-0" />
         <input
           id="sessionName"
@@ -799,6 +833,7 @@ export default function App() {
           settings={settings}
           setSettings={setSettings}
           onPreviewSound={previewSound}
+          onPreviewTick={previewTick}
         />
       )}
 
@@ -808,10 +843,8 @@ export default function App() {
             {timerState.phase === Phase.FOCUS ? `Focus Cycle ${timerState.cycleCount + 1}/4` : 'Break Time'}
         </div>
         <TimerDisplay ms={displayTime} isOverflowing={isOverflowing} phase={timerState.phase} />
-
-        {/* Shortcuts Hint */}
         <div className="absolute bottom-[-2rem] text-[10px] text-gray-700 uppercase font-bold tracking-[0.3em] pointer-events-none opacity-40">
-          [Space] {isOverflowing ? 'Next' : 'Toggle'} · [R] End · [Esc] Menu
+          [Space] {isOverflowing ? 'Next' : 'Pause'}
         </div>
       </main>
 
@@ -848,11 +881,7 @@ export default function App() {
 
       {/* Distraction Modal */}
       {isDistractionModalOpen && (
-        <Modal
-          onRestart={handleModalRestart}
-          onTakeBreak={proceedToNextPhase}
-          onClose={handleModalClose}
-        />
+        <Modal onRestart={handleModalRestart} onTakeBreak={proceedToNextPhase} onClose={handleModalClose} />
       )}
 
       {/* History Modal */}
@@ -872,16 +901,10 @@ export default function App() {
             <h3 className="text-xl font-extrabold text-white mb-3 tracking-tight">Stop Session?</h3>
             <p className="text-sm text-gray-500 mb-8 font-medium leading-relaxed">This will save your progress to history and reset the timers.</p>
             <div className="flex flex-col gap-3">
-               <button
-                 onClick={confirmFullReset}
-                 className="w-full py-3.5 rounded-full bg-red-600 text-white hover:bg-red-500 text-[11px] font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(220,38,38,0.3)]"
-               >
+               <button onClick={confirmFullReset} className="w-full py-3.5 rounded-full bg-red-600 text-white hover:bg-red-500 text-[11px] font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(220,38,38,0.3)]">
                  End & Save
                </button>
-               <button
-                 onClick={() => setIsResetConfirmOpen(false)}
-                 className="w-full py-3.5 rounded-full border border-[#222] text-gray-400 hover:text-white hover:bg-white/5 text-[11px] font-bold uppercase tracking-widest"
-               >
+               <button onClick={() => setIsResetConfirmOpen(false)} className="w-full py-3.5 rounded-full border border-[#222] text-gray-400 hover:text-white hover:bg-white/5 text-[11px] font-bold uppercase tracking-widest">
                  Cancel
                </button>
             </div>
@@ -891,72 +914,6 @@ export default function App() {
     </div>
   );
 }
-```
-
----
-
-### types.ts
-```ts
-export enum Phase {
-  FOCUS = 'FOCUS',
-  SHORT_BREAK = 'SHORT_BREAK',
-  LONG_BREAK = 'LONG_BREAK',
-}
-
-export interface Settings {
-  focusDuration: number;
-  shortBreakDuration: number;
-  longBreakDuration: number;
-  volume: number;
-  alarmRepetitions: number;
-}
-
-export interface TimerState {
-  phase: Phase;
-  isRunning: boolean;
-  startTime: number | null;         // Timestamp when timer started/resumed
-  remainingTimeAtPause: number | null; // Milliseconds remaining when paused
-  cycleCount: number;               // Tracks 4x focus cycles
-}
-
-export interface TimelineSegment {
-  id: string;
-  type: Phase;
-  duration: number;                 // ms spent in this segment
-  status: 'completed' | 'interrupted' | 'ongoing'; // 'ongoing' is used for live rendering only
-  timestamp: number;
-}
-
-export interface HistoryEntry {
-  id: string;
-  name: string;
-  timestamp: number;
-  duration: number;                 // total focus minutes (rounded)
-  segments: TimelineSegment[];
-}
-```
-
----
-
-### constants.ts
-```ts
-import { Phase, Settings } from './types';
-
-export const DEFAULT_SETTINGS: Settings = {
-  focusDuration: 25,
-  shortBreakDuration: 5,
-  longBreakDuration: 15,
-  volume: 50,
-  alarmRepetitions: 1,
-};
-
-export const DING_B64 = "data:audio/wav;base64,UklGRqRwAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YYBwAACBhYqFbF1fdJivrJBhNjVgodDbqWEzM2CfutvnrmE0M1+ZtuHirGM1NFyXuODlsWQ2NVqTt+LmtWg3NViRtOLnuGk4NFePs+LovGw5NFWOsePpvm06NFSMsOPqwG47NFOMr+TrwnA8NVKMrOTsxXI9NVCKp+TtxnM+NU+KpeXuyHU/NU6JpObvyXY/NU2Ioebwyng/NUyHn+fxy3lANUuGm+fyzHpBNUqFmObzzXtCNUmEluX0znxDNUiDleT10H1ENUd/k+T20X5FNUZ+keP30n9GNUV9j+L41IBHNUQVAAA=";
-
-export const PHASE_LABELS: Record<Phase, string> = {
-  [Phase.FOCUS]: 'Focus',
-  [Phase.SHORT_BREAK]: 'Short Break',
-  [Phase.LONG_BREAK]: 'Long Break',
-};
 ```
 
 ---
@@ -977,16 +934,9 @@ interface ControlsProps {
 }
 
 export const Controls: React.FC<ControlsProps> = ({
-  isRunning,
-  isOverflowing,
-  hasStarted,
-  phase,
-  onToggle,
-  onReset,
-  onStopNext
+  isRunning, isOverflowing, hasStarted, phase, onToggle, onReset, onStopNext
 }) => {
   const btnBase = "px-10 py-3.5 rounded-full border transition-all text-sm font-bold tracking-widest uppercase min-w-[140px] active:scale-95";
-
   const defaultBtnClass = `${btnBase} border-[#333] text-white hover:border-white hover:bg-white/5`;
   const startBtnClass = `${btnBase} bg-white text-black border-white hover:bg-gray-200`;
   const resumeBtnClass = `${btnBase} bg-white text-black border-white hover:bg-gray-200 animate-resume-pulse`;
@@ -995,9 +945,7 @@ export const Controls: React.FC<ControlsProps> = ({
   const resetBtnClass = "mt-6 text-[11px] text-gray-500 hover:text-red-500 uppercase font-bold tracking-[0.25em] transition-colors border-b border-transparent hover:border-red-500/50 pb-1";
 
   let mainActionLabel = 'Stop';
-  if (isOverflowing || phase !== Phase.FOCUS) {
-    mainActionLabel = 'Next Phase';
-  }
+  if (isOverflowing || phase !== Phase.FOCUS) mainActionLabel = 'Next Phase';
 
   let toggleBtnClass = startBtnClass;
   if (isRunning) toggleBtnClass = pauseBtnClass;
@@ -1016,7 +964,7 @@ export const Controls: React.FC<ControlsProps> = ({
         </button>
       </div>
       <button id="reset" onClick={onReset} className={resetBtnClass}>
-        Stop Session
+        End Session
       </button>
     </div>
   );
@@ -1025,274 +973,44 @@ export const Controls: React.FC<ControlsProps> = ({
 
 ---
 
-### components/HistoryModal.tsx
+### components/TimerDisplay.tsx
 ```tsx
-import React, { useState } from 'react';
-import { HistoryEntry, Phase } from '../types';
-import { Timeline } from './Timeline';
+import React from 'react';
+import { Phase } from '../types';
 
-function triggerDownload(content: string, filename: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+interface TimerDisplayProps {
+  ms: number;
+  isOverflowing: boolean;
+  phase: Phase;
 }
 
-interface HistoryModalProps {
-  history: HistoryEntry[];
-  onClose: () => void;
-  onClear: () => void;
-  onDelete: (id: string) => void;
-}
+export const TimerDisplay: React.FC<TimerDisplayProps> = ({ ms, isOverflowing, phase }) => {
+  const absMs = Math.abs(ms);
+  const totalSeconds = Math.floor(absMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (num: number) => num.toString().padStart(2, '0');
+  const formatted = `${pad(minutes)}:${pad(seconds)}`;
 
-export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, onClear, onDelete }) => {
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [isClearAllConfirm, setIsClearAllConfirm] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const toggleExpand = (id: string) => {
-    setExpandedId(prev => prev === id ? null : id);
-  };
-
-  const dateStamp = new Date().toISOString().slice(0, 10);
-
-  const handleExportJSON = () => {
-    triggerDownload(
-      JSON.stringify(history, null, 2),
-      `fluorite-focus-${dateStamp}.json`,
-      'application/json'
-    );
-  };
-
-  const handleExportCSV = () => {
-    const headers = ['id', 'name', 'date', 'start_time', 'end_time', 'duration_min', 'focus_min', 'short_break_min', 'long_break_min'];
-    const rows = history.map(entry => {
-      const firstSeg = entry.segments?.[0];
-      const startTs = firstSeg ? firstSeg.timestamp - firstSeg.duration : entry.timestamp - entry.duration * 60000;
-      const sumMs = (phase: Phase) =>
-        (entry.segments ?? []).filter(s => s.type === phase).reduce((acc, s) => acc + s.duration, 0);
-      const cols = [
-        entry.id,
-        `"${entry.name.replace(/"/g, '""')}"`,
-        new Date(entry.timestamp).toLocaleDateString(),
-        new Date(startTs).toLocaleTimeString(),
-        new Date(entry.timestamp).toLocaleTimeString(),
-        entry.duration,
-        Math.round(sumMs(Phase.FOCUS) / 60000),
-        Math.round(sumMs(Phase.SHORT_BREAK) / 60000),
-        Math.round(sumMs(Phase.LONG_BREAK) / 60000),
-      ];
-      return cols.join(',');
-    });
-    triggerDownload(
-      [headers.join(','), ...rows].join('\n'),
-      `fluorite-focus-${dateStamp}.csv`,
-      'text/csv'
-    );
-  };
+  let textColorClass = 'text-white';
+  let textShadowStyle = 'none';
+  if (isOverflowing) {
+    if (phase === Phase.FOCUS) {
+      textColorClass = 'text-[#00ff88]';
+      textShadowStyle = '0 0 40px rgba(0, 255, 136, 0.3)';
+    } else {
+      textColorClass = 'text-red-500';
+      textShadowStyle = '0 0 40px rgba(239, 68, 68, 0.3)';
+    }
+  }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      id="timer"
+      className={`font-tabular font-extrabold leading-none tracking-tight select-none drop-shadow-[0_0_15px_rgba(255,255,255,0.05)] transition-colors duration-300 ${textColorClass}`}
+      style={{ fontSize: 'clamp(5rem, 18vw, 9.5rem)', textShadow: textShadowStyle }}
     >
-      <div className="bg-[#0a0a0a] border border-[#222] w-full max-w-md h-[70vh] flex flex-col rounded-2xl shadow-2xl relative overflow-hidden">
-
-        {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-[#222] bg-[#0a0a0a]">
-          <h2 className="text-xl font-bold text-white tracking-tight">Session History</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#222]"
-          >
-             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-[#333] scrollbar-track-transparent">
-           {history.length === 0 && (
-             <div className="flex flex-col items-center justify-center h-full text-gray-600 gap-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="opacity-20"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                <span className="text-sm font-mono">No sessions recorded.</span>
-             </div>
-           )}
-           {history.map(entry => {
-              const hasTimeline = entry.segments && entry.segments.length > 0;
-              const isExpanded = expandedId === entry.id;
-
-              return (
-                <div key={entry.id} className="bg-[#111] rounded-lg border border-[#222] overflow-hidden transition-all duration-300">
-                  <div className="group flex justify-between items-center p-4 hover:bg-[#161616] relative">
-                      <div>
-                          <div className="font-bold text-white text-sm mb-1">{entry.name}</div>
-                          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-mono">
-                            {new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {entry.segments?.length > 0 ? new Date(entry.segments[0].timestamp - entry.segments[0].duration).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' }) + ' → ' : ''}{new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' })}
-                          </div>
-                      </div>
-                      <div className="flex items-center gap-2 pl-4">
-                          <div className="text-right mr-2">
-                            <span className="font-mono text-[#00ff88] text-lg font-bold block leading-none">{entry.duration}</span>
-                            <span className="text-[9px] text-gray-600 uppercase tracking-widest block text-right">min</span>
-                          </div>
-
-                          {/* Timeline Toggle Button */}
-                          {hasTimeline && (
-                             <button
-                               onClick={() => toggleExpand(entry.id)}
-                               className={`w-8 h-8 flex items-center justify-center rounded transition-all ${isExpanded ? 'text-[#00ff88] bg-[#00ff88]/10' : 'text-gray-600 hover:text-white hover:bg-[#222]'}`}
-                               title="View Timeline"
-                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                             </button>
-                          )}
-
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => setDeleteId(entry.id)}
-                            className="w-8 h-8 flex items-center justify-center rounded text-gray-600 hover:text-red-500 hover:bg-[#222] transition-colors"
-                            title="Delete Entry"
-                          >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                          </button>
-                      </div>
-                  </div>
-
-                  {/* Expanded Timeline View */}
-                  {isExpanded && hasTimeline && (
-                    <div className="border-t border-[#222] bg-[#050505] p-4 animate-in fade-in slide-in-from-top-1">
-                       <Timeline
-                          segments={entry.segments}
-                          currentPhase={Phase.FOCUS}
-                          currentDuration={0}
-                          isRunning={false}
-                          totalPhaseDuration={0}
-                       />
-                    </div>
-                  )}
-                </div>
-              );
-           })}
-        </div>
-
-        {/* Footer */}
-        {history.length > 0 && (
-            <div className="p-4 border-t border-[#222] bg-[#0a0a0a] space-y-2">
-                <div className="flex gap-2">
-                    <button
-                      onClick={handleExportJSON}
-                      className="flex-1 py-2.5 rounded border border-[#333] text-gray-400 hover:text-white hover:border-[#555] hover:bg-[#1a1a1a] text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
-                      title="Download history as JSON"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                      JSON
-                    </button>
-                    <button
-                      onClick={handleExportCSV}
-                      className="flex-1 py-2.5 rounded border border-[#333] text-gray-400 hover:text-white hover:border-[#555] hover:bg-[#1a1a1a] text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
-                      title="Download history as CSV"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                      CSV
-                    </button>
-                </div>
-                <button
-                  onClick={() => setIsClearAllConfirm(true)}
-                  className="w-full py-3 rounded border border-red-900/30 text-red-700 hover:bg-red-900/10 hover:border-red-800 hover:text-red-500 text-xs font-bold uppercase tracking-widest transition-all"
-                >
-                    Clear All History
-                </button>
-            </div>
-        )}
-
-        {/* Delete Confirmation Overlay (Individual) */}
-        {deleteId && (
-            <div className="absolute inset-0 bg-black/95 flex items-center justify-center z-20 flex-col p-8 text-center animate-in fade-in duration-200">
-                <div className="w-12 h-12 rounded-full bg-red-900/20 text-red-500 flex items-center justify-center mb-4 border border-red-900/50">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                </div>
-                <h3 className="text-white font-bold text-lg mb-2">Delete this entry?</h3>
-                <p className="text-gray-500 text-sm mb-6 max-w-[200px] mx-auto leading-relaxed">This record will be permanently removed from your local history.</p>
-                <div className="flex gap-3 w-full">
-                    <button
-                        onClick={() => setDeleteId(null)}
-                        className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222] transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => { onDelete(deleteId); setDeleteId(null); }}
-                        className="flex-1 py-3 bg-red-600 rounded text-white text-xs font-bold uppercase hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-all"
-                    >
-                        Delete
-                    </button>
-                </div>
-            </div>
-        )}
-
-        {/* Clear All Confirmation Overlay */}
-        {isClearAllConfirm && (
-             <div className="absolute inset-0 bg-black/95 flex items-center justify-center z-20 flex-col p-8 text-center animate-in fade-in duration-200">
-                <h3 className="text-white font-bold text-lg mb-2 text-red-500">Clear All History?</h3>
-                <p className="text-gray-500 text-sm mb-6">You are about to delete all {history.length} recorded sessions. This cannot be undone.</p>
-                <div className="flex gap-3 w-full">
-                    <button
-                        onClick={() => setIsClearAllConfirm(false)}
-                        className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222]"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => { onClear(); setIsClearAllConfirm(false); }}
-                        className="flex-1 py-3 bg-red-900/80 border border-red-700 rounded text-white text-xs font-bold uppercase hover:bg-red-800"
-                    >
-                        Yes, Clear All
-                    </button>
-                </div>
-             </div>
-        )}
-      </div>
-    </div>
-  );
-};
-```
-
----
-
-### components/Modal.tsx
-```tsx
-import React from 'react';
-
-interface ModalProps {
-  onRestart: () => void;
-  onTakeBreak: () => void;
-  onClose: () => void;
-}
-
-export const Modal: React.FC<ModalProps> = ({ onRestart, onTakeBreak, onClose }) => {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#111] border border-[#333] p-8 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col gap-6 transform scale-100">
-        <h2 className="text-xl font-bold text-center">Session Interrupted</h2>
-        <div className="flex flex-col gap-1 text-center">
-          <p className="text-gray-400 text-sm">Distracted?</p>
-          <p className="text-white font-bold text-base">What's next?</p>
-        </div>
-        <div className="flex flex-col gap-3 mt-2">
-          <button onClick={onRestart} className="w-full py-3 rounded bg-white text-black font-bold uppercase text-xs tracking-widest hover:bg-gray-200">
-            Restart Session
-          </button>
-          <button onClick={onTakeBreak} className="w-full py-3 rounded border border-[#333] hover:border-[#00ff88] hover:text-[#00ff88] text-gray-300 font-bold uppercase text-xs tracking-widest">
-            Take a Break
-          </button>
-          <button onClick={onClose} className="w-full py-2 text-gray-500 hover:text-white text-xs">
-            Close / Resume
-          </button>
-        </div>
-      </div>
+      {isOverflowing && <span className="mr-2 opacity-80">+</span>}{formatted}
     </div>
   );
 };
@@ -1309,9 +1027,10 @@ interface SettingsMenuProps {
   settings: Settings;
   setSettings: React.Dispatch<React.SetStateAction<Settings>>;
   onPreviewSound: () => void;
+  onPreviewTick: () => void;
 }
 
-export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSettings, onPreviewSound }) => {
+export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSettings, onPreviewSound, onPreviewTick }) => {
   const handleChange = (key: keyof Settings, value: number) => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
@@ -1321,6 +1040,13 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSetting
     { label: 'Short Break', key: 'shortBreakDuration' as const, min: 1, max: 15, step: 1 },
     { label: 'Long Break', key: 'longBreakDuration' as const, min: 1, max: 30, step: 1 },
   ];
+
+  const PreviewIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+    </svg>
+  );
 
   return (
     <div className="w-full max-w-md border border-[#1c1c1c] rounded-2xl px-6 py-5 mb-8 flex flex-col gap-5 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -1373,10 +1099,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSetting
             title="Preview Sound"
             className="w-9 h-9 rounded-full border border-[#222] flex items-center justify-center text-[#00ff88] hover:bg-[#111] hover:border-[#333] active:scale-95 transition-all flex-shrink-0"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-            </svg>
+            <PreviewIcon />
           </button>
         </div>
       </div>
@@ -1402,53 +1125,54 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ settings, setSetting
           ))}
         </div>
       </div>
-    </div>
-  );
-};
-```
 
----
+      <div className="border-t border-[#1c1c1c]" />
 
-### components/SettingsPanel.tsx (UNUSED)
-```tsx
-import React from 'react';
-import { Settings } from '../types';
-
-interface SettingsPanelProps {
-  settings: Settings;
-  setSettings: React.Dispatch<React.SetStateAction<Settings>>;
-}
-
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, setSettings }) => {
-  const handleChange = (key: keyof Settings, value: number) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-  };
-
-  const sliders = [
-    { label: 'Focus', key: 'focusDuration' as const, min: 1, max: 60, step: 1 },
-    { label: 'Short Break', key: 'shortBreakDuration' as const, min: 1, max: 15, step: 1 },
-    { label: 'Long Break', key: 'longBreakDuration' as const, min: 1, max: 30, step: 1 },
-  ];
-
-  return (
-    <div className="w-full max-w-2xl grid grid-cols-3 gap-8 mb-10 text-sm">
-      {sliders.map(s => (
-        <div key={s.key} className="flex flex-col gap-3">
-          <div className="flex justify-between items-baseline">
-            <label className="text-gray-500 uppercase tracking-[0.15em] text-[10px] font-bold">{s.label}</label>
-            <span className="font-tabular font-bold text-[#00ff88] text-base">{settings[s.key]}m</span>
+      {/* Overflow Tick */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-700">Overflow Tick</p>
+          <div className="flex gap-2">
+            {(['Off', 'On'] as const).map(label => {
+              const active = label === 'On' ? settings.tickingEnabled : !settings.tickingEnabled;
+              return (
+                <button
+                  key={label}
+                  onClick={() => setSettings(prev => ({ ...prev, tickingEnabled: label === 'On' }))}
+                  className={`px-4 h-7 rounded-full border text-[10px] font-bold tracking-widest transition-all active:scale-95 ${
+                    active
+                      ? 'border-[#00ff88] text-[#00ff88] bg-[#00ff88]/5'
+                      : 'border-[#222] text-gray-500 hover:border-[#333] hover:text-white hover:bg-[#111]'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-          <input
-            type="range"
-            min={s.min}
-            max={s.max}
-            step={s.step}
-            value={settings[s.key]}
-            onChange={(e) => handleChange(s.key, parseInt(e.target.value))}
-            className="w-full"
-          />
         </div>
-      ))}
+        {settings.tickingEnabled && (
+          <div className="flex items-center gap-4">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="10"
+              value={settings.tickingVolume}
+              onChange={(e) => setSettings(prev => ({ ...prev, tickingVolume: parseInt(e.target.value) }))}
+              className="flex-1"
+            />
+            <span className="font-bold text-[#00ff88] text-sm tabular-nums w-8 text-right">{settings.tickingVolume}</span>
+            <button
+              onClick={onPreviewTick}
+              title="Preview Tick"
+              className="w-9 h-9 rounded-full border border-[#222] flex items-center justify-center text-[#00ff88] hover:bg-[#111] hover:border-[#333] active:scale-95 transition-all flex-shrink-0"
+            >
+              <PreviewIcon />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -1488,27 +1212,19 @@ export const Timeline: React.FC<TimelineProps> = ({
   const allSegments = useMemo<TimelineSegment[]>(() => {
     const list = [...segments];
     if (currentDuration > 0) {
-      list.push({
-        id: 'current',
-        type: currentPhase,
-        duration: currentDuration,
-        status: 'ongoing' as const,
-        timestamp: Date.now()
-      });
+      list.push({ id: 'current', type: currentPhase, duration: currentDuration, status: 'ongoing' as const, timestamp: Date.now() });
     }
     return list;
   }, [segments, currentPhase, currentDuration]);
 
   const stats = useMemo(() => {
-    let totalFocus = 0;
-    let totalBreak = 0;
+    let totalFocus = 0, totalBreak = 0;
     allSegments.forEach(s => {
       if (s.type === Phase.FOCUS) totalFocus += s.duration;
       else totalBreak += s.duration;
     });
     const total = totalFocus + totalBreak;
-    const focusPercent = total > 0 ? Math.round((totalFocus / total) * 100) : 0;
-    return { totalFocus, totalBreak, focusPercent };
+    return { totalFocus, totalBreak, focusPercent: total > 0 ? Math.round((totalFocus / total) * 100) : 0 };
   }, [allSegments]);
 
   const formatTime = (ms: number) => {
@@ -1528,25 +1244,16 @@ export const Timeline: React.FC<TimelineProps> = ({
   const sliderTransition = isRunning
     ? 'grid-template-rows 480ms ease 0ms, opacity 320ms ease 160ms'
     : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
-
   const timelineTransition = !isRunning
     ? 'grid-template-rows 480ms ease 0ms, opacity 320ms ease 160ms'
     : 'opacity 220ms ease 0ms, grid-template-rows 380ms ease 200ms';
 
   return (
-    <div
-      className="w-full max-w-2xl"
-      style={{
-        display: 'grid',
-        gridTemplateRows: hasContent ? '1fr' : '0fr',
-        opacity: hasContent ? 1 : 0,
-        transition: outerTransition,
-      }}
-    >
+    <div className="w-full max-w-2xl" style={{ display: 'grid', gridTemplateRows: hasContent ? '1fr' : '0fr', opacity: hasContent ? 1 : 0, transition: outerTransition }}>
       <div style={{ overflow: 'hidden' }}>
       <div className="mt-8">
 
-      {/* ── SLIDER VIEW (running) ── */}
+      {/* Slider view (running) */}
       <div style={{ display: 'grid', gridTemplateRows: sliderGridRows, opacity: sliderOpacity, transition: sliderTransition }}>
         <div style={{ overflow: 'hidden' }}>
           <div className="flex flex-col gap-2 pb-1">
@@ -1561,7 +1268,7 @@ export const Timeline: React.FC<TimelineProps> = ({
         </div>
       </div>
 
-      {/* ── FULL TIMELINE VIEW (paused / stopped) ── */}
+      {/* Full timeline view (paused / stopped) */}
       <div style={{ display: 'grid', gridTemplateRows: !isRunning ? '1fr' : '0fr', opacity: !isRunning ? 1 : 0, transition: timelineTransition }}>
         <div style={{ overflow: 'hidden' }}>
           <div className="flex flex-col gap-2 pt-1">
@@ -1579,11 +1286,10 @@ export const Timeline: React.FC<TimelineProps> = ({
                 let color = '#333';
                 if (segIsFocus) color = isInterrupted ? '#006644' : '#00ff88';
                 else color = isInterrupted ? '#224466' : '#4488ff';
-                const flexGrow = Math.max(seg.duration, 1000);
                 return (
                   <div
                     key={seg.id === 'current' ? `current-${i}` : seg.id}
-                    style={{ flexGrow, backgroundColor: color }}
+                    style={{ flexGrow: Math.max(seg.duration, 1000), backgroundColor: color }}
                     className="h-full"
                     title={`${seg.type} (${seg.status}): ${formatTime(seg.duration)}`}
                   />
@@ -1608,49 +1314,197 @@ export const Timeline: React.FC<TimelineProps> = ({
 
 ---
 
-### components/TimerDisplay.tsx
+### components/Modal.tsx
 ```tsx
 import React from 'react';
-import { Phase } from '../types';
 
-interface TimerDisplayProps {
-  ms: number;
-  isOverflowing: boolean;
-  phase: Phase;
+interface ModalProps {
+  onRestart: () => void;
+  onTakeBreak: () => void;
+  onClose: () => void;
 }
 
-export const TimerDisplay: React.FC<TimerDisplayProps> = ({ ms, isOverflowing, phase }) => {
-  const absMs = Math.abs(ms);
-  const totalSeconds = Math.floor(absMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+export const Modal: React.FC<ModalProps> = ({ onRestart, onTakeBreak, onClose }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-[#111] border border-[#333] p-8 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col gap-6 transform scale-100">
+        <h2 className="text-xl font-bold text-center">Session Interrupted</h2>
+        <div className="flex flex-col gap-1 text-center">
+          <p className="text-gray-400 text-sm">Distracted?</p>
+          <p className="text-white font-bold text-base">What's next?</p>
+        </div>
+        <div className="flex flex-col gap-3 mt-2">
+          <button onClick={onRestart} className="w-full py-3 rounded bg-white text-black font-bold uppercase text-xs tracking-widest hover:bg-gray-200">
+            Restart Session
+          </button>
+          <button onClick={onTakeBreak} className="w-full py-3 rounded border border-[#333] hover:border-[#00ff88] hover:text-[#00ff88] text-gray-300 font-bold uppercase text-xs tracking-widest">
+            Take a Break
+          </button>
+          <button onClick={onClose} className="w-full py-2 text-gray-500 hover:text-white text-xs">
+            Close / Resume
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
 
-  const pad = (num: number) => num.toString().padStart(2, '0');
-  const formatted = `${pad(minutes)}:${pad(seconds)}`;
+---
 
-  let textColorClass = 'text-white';
-  let textShadowStyle = 'none';
+### components/HistoryModal.tsx
+```tsx
+import React, { useState } from 'react';
+import { HistoryEntry, Phase } from '../types';
+import { Timeline } from './Timeline';
 
-  if (isOverflowing) {
-    if (phase === Phase.FOCUS) {
-      textColorClass = 'text-[#00ff88]';
-      textShadowStyle = '0 0 40px rgba(0, 255, 136, 0.3)';
-    } else {
-      textColorClass = 'text-red-500';
-      textShadowStyle = '0 0 40px rgba(239, 68, 68, 0.3)';
-    }
-  }
+function triggerDownload(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+interface HistoryModalProps {
+  history: HistoryEntry[];
+  onClose: () => void;
+  onClear: () => void;
+  onDelete: (id: string) => void;
+}
+
+export const HistoryModal: React.FC<HistoryModalProps> = ({ history, onClose, onClear, onDelete }) => {
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isClearAllConfirm, setIsClearAllConfirm] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const toggleExpand = (id: string) => setExpandedId(prev => prev === id ? null : id);
+  const dateStamp = new Date().toISOString().slice(0, 10);
+
+  const handleExportJSON = () => {
+    triggerDownload(JSON.stringify(history, null, 2), `fluorite-focus-${dateStamp}.json`, 'application/json');
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['id', 'name', 'date', 'start_time', 'end_time', 'duration_min', 'focus_min', 'short_break_min', 'long_break_min'];
+    const rows = history.map(entry => {
+      const firstSeg = entry.segments?.[0];
+      const startTs = firstSeg ? firstSeg.timestamp - firstSeg.duration : entry.timestamp - entry.duration * 60000;
+      const sumMs = (phase: Phase) =>
+        (entry.segments ?? []).filter(s => s.type === phase).reduce((acc, s) => acc + s.duration, 0);
+      return [
+        entry.id,
+        `"${entry.name.replace(/"/g, '""')}"`,
+        new Date(entry.timestamp).toLocaleDateString(),
+        new Date(startTs).toLocaleTimeString(),
+        new Date(entry.timestamp).toLocaleTimeString(),
+        entry.duration,
+        Math.round(sumMs(Phase.FOCUS) / 60000),
+        Math.round(sumMs(Phase.SHORT_BREAK) / 60000),
+        Math.round(sumMs(Phase.LONG_BREAK) / 60000),
+      ].join(',');
+    });
+    triggerDownload([headers.join(','), ...rows].join('\n'), `fluorite-focus-${dateStamp}.csv`, 'text/csv');
+  };
 
   return (
-    <div
-      id="timer"
-      className={`font-tabular font-extrabold leading-none tracking-tight select-none drop-shadow-[0_0_15px_rgba(255,255,255,0.05)] transition-colors duration-300 ${textColorClass}`}
-      style={{
-        fontSize: 'clamp(5rem, 18vw, 9.5rem)',
-        textShadow: textShadowStyle
-      }}
-    >
-      {isOverflowing && <span className="mr-2 opacity-80">+</span>}{formatted}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-200" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-[#0a0a0a] border border-[#222] w-full max-w-md h-[70vh] flex flex-col rounded-2xl shadow-2xl relative overflow-hidden">
+        <div className="flex justify-between items-center p-6 border-b border-[#222] bg-[#0a0a0a]">
+          <h2 className="text-xl font-bold text-white tracking-tight">Session History</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#222]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {history.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-600 gap-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="opacity-20"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <span className="text-sm font-mono">No sessions recorded.</span>
+            </div>
+          )}
+          {history.map(entry => {
+            const hasTimeline = entry.segments && entry.segments.length > 0;
+            const isExpanded = expandedId === entry.id;
+            return (
+              <div key={entry.id} className="bg-[#111] rounded-lg border border-[#222] overflow-hidden">
+                <div className="group flex justify-between items-center p-4 hover:bg-[#161616] relative">
+                  <div>
+                    <div className="font-bold text-white text-sm mb-1">{entry.name}</div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wider font-mono">
+                      {new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {entry.segments?.length > 0 ? new Date(entry.segments[0].timestamp - entry.segments[0].duration).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' }) + ' → ' : ''}{new Date(entry.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' })}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pl-4">
+                    <div className="text-right mr-2">
+                      <span className="font-mono text-[#00ff88] text-lg font-bold block leading-none">{entry.duration}</span>
+                      <span className="text-[9px] text-gray-600 uppercase tracking-widest block text-right">min</span>
+                    </div>
+                    {hasTimeline && (
+                      <button onClick={() => toggleExpand(entry.id)} className={`w-8 h-8 flex items-center justify-center rounded transition-all ${isExpanded ? 'text-[#00ff88] bg-[#00ff88]/10' : 'text-gray-600 hover:text-white hover:bg-[#222]'}`} title="View Timeline">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      </button>
+                    )}
+                    <button onClick={() => setDeleteId(entry.id)} className="w-8 h-8 flex items-center justify-center rounded text-gray-600 hover:text-red-500 hover:bg-[#222] transition-colors" title="Delete Entry">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                  </div>
+                </div>
+                {isExpanded && hasTimeline && (
+                  <div className="border-t border-[#222] bg-[#050505] p-4 animate-in fade-in slide-in-from-top-1">
+                    <Timeline segments={entry.segments} currentPhase={Phase.FOCUS} currentDuration={0} isRunning={false} totalPhaseDuration={0} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {history.length > 0 && (
+          <div className="p-4 border-t border-[#222] bg-[#0a0a0a] space-y-2">
+            <div className="flex gap-2">
+              <button onClick={handleExportJSON} className="flex-1 py-2.5 rounded border border-[#333] text-gray-400 hover:text-white hover:border-[#555] hover:bg-[#1a1a1a] text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5" title="Download history as JSON">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                JSON
+              </button>
+              <button onClick={handleExportCSV} className="flex-1 py-2.5 rounded border border-[#333] text-gray-400 hover:text-white hover:border-[#555] hover:bg-[#1a1a1a] text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1.5" title="Download history as CSV">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                CSV
+              </button>
+            </div>
+            <button onClick={() => setIsClearAllConfirm(true)} className="w-full py-3 rounded border border-red-900/30 text-red-700 hover:bg-red-900/10 hover:border-red-800 hover:text-red-500 text-xs font-bold uppercase tracking-widest transition-all">
+              Clear All History
+            </button>
+          </div>
+        )}
+
+        {deleteId && (
+          <div className="absolute inset-0 bg-black/95 flex items-center justify-center z-20 flex-col p-8 text-center animate-in fade-in duration-200">
+            <div className="w-12 h-12 rounded-full bg-red-900/20 text-red-500 flex items-center justify-center mb-4 border border-red-900/50">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            </div>
+            <h3 className="text-white font-bold text-lg mb-2">Delete this entry?</h3>
+            <p className="text-gray-500 text-sm mb-6 max-w-[200px] mx-auto leading-relaxed">This record will be permanently removed from your local history.</p>
+            <div className="flex gap-3 w-full">
+              <button onClick={() => setDeleteId(null)} className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222] transition-colors">Cancel</button>
+              <button onClick={() => { onDelete(deleteId); setDeleteId(null); }} className="flex-1 py-3 bg-red-600 rounded text-white text-xs font-bold uppercase hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-all">Delete</button>
+            </div>
+          </div>
+        )}
+
+        {isClearAllConfirm && (
+          <div className="absolute inset-0 bg-black/95 flex items-center justify-center z-20 flex-col p-8 text-center animate-in fade-in duration-200">
+            <h3 className="text-white font-bold text-lg mb-2 text-red-500">Clear All History?</h3>
+            <p className="text-gray-500 text-sm mb-6">You are about to delete all {history.length} recorded sessions. This cannot be undone.</p>
+            <div className="flex gap-3 w-full">
+              <button onClick={() => setIsClearAllConfirm(false)} className="flex-1 py-3 border border-[#333] rounded text-gray-300 text-xs font-bold uppercase hover:bg-[#222]">Cancel</button>
+              <button onClick={() => { onClear(); setIsClearAllConfirm(false); }} className="flex-1 py-3 bg-red-900/80 border border-red-700 rounded text-white text-xs font-bold uppercase hover:bg-red-800">Yes, Clear All</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

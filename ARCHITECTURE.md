@@ -5,7 +5,7 @@
 ```text
 App (Root)
 ├── [Header]            — Session name input + gear icon button (⚙) that toggles SettingsMenu
-├── SettingsMenu        — Collapsible panel: duration sliders + alarm volume + alarm repetitions (opened via gear button)
+├── SettingsMenu        — Collapsible panel: duration sliders + alarm volume + alarm repetitions + overflow tick (opened via gear button)
 ├── TimerDisplay        — Large MM:SS clock with overflow (+) prefix and phase-aware color/glow
 ├── Controls            — Start / Pause / Resume / Stop / Next Phase buttons
 ├── Timeline            — Dual-mode progress bar (slider ↔ segmented timeline)
@@ -23,7 +23,7 @@ App (Root)
 2. **Timeline State:** `segments` — completed/interrupted `TimelineSegment[]` for the current session.
 3. **currentSegmentElapsed:** Live ms elapsed in the current phase, updated every rAF tick.
 4. **History State:** `HistoryEntry[]` representing finished sessions (persisted to localStorage).
-5. **Settings State:** User-defined durations (`focusDuration`, `shortBreakDuration`, `longBreakDuration`), `volume`, and `alarmRepetitions`.
+5. **Settings State:** User-defined durations (`focusDuration`, `shortBreakDuration`, `longBreakDuration`), `volume`, `alarmRepetitions`, `tickingEnabled`, `tickingVolume`.
 6. **UI State:** Modal visibility flags (`isDistractionModalOpen`, `isResetConfirmOpen`, `isHistoryModalOpen`, `isSettingsOpen`).
 
 ## Data Flow
@@ -60,14 +60,20 @@ App (Root)
 - `isSettingsOpen` (boolean) in App.tsx controls whether `<SettingsMenu>` is mounted.
 - The gear button in the header toggles this state.
 - When open, the panel appears between the header and the timer, pushing content down.
-- `setSettings` and `previewSound` are passed as props so the panel can update settings and trigger the alarm preview. `previewSound` runs in a dedicated `AudioContext` (`previewCtxRef`) and always plays one chime. A `useEffect` watching `isSettingsOpen` calls `stopPreview()` the moment the panel closes, cutting audio instantly.
+- `setSettings`, `previewSound`, and `previewTick` are passed as props so the panel can update settings and trigger audio previews. Both preview functions use a shared `previewCtxRef` (`AudioContext`) that is closed instantly when the panel closes via `stopPreview()`.
+
+### 7. Overflow Tick
+- `playTick` synthesizes a soft C5 (523.25 Hz) sine tone: 4ms attack, 220ms exponential decay, peak gain `volume² × 0.09` (much quieter than the alarm).
+- A `useEffect` watches `displayTime` during overflow. It computes the current overflow second (`floor(|displayTime| / 1000)`) and fires `playTick` when the second changes, but only after the alarm has fully finished playing.
+- Tick start threshold: `ceil((alarmRepetitions - 1) × 2.8 + 2.65)` seconds (accounts for all repetition spacings + last bell decay).
+- `lastTickSecondRef` prevents double-firing within the same second and is reset to `-1` on phase change, stop, or restart.
 
 ## Component Responsibilities
 
 - **TimerDisplay:** Purely representational. Formats milliseconds into `MM:SS`, handles overflow color/glow, renders `+` prefix. Green glow on Focus overflow, red glow on Break overtime.
 - **Timeline:** Dual-mode component. Running mode: live progress bar. Paused/stopped mode: full segmented history with stats and legend. Accepts `totalPhaseDuration` prop to compute fill percentage.
 - **Controls:** Determines which button to show (Start / Resume / Pause / Next Phase) based on `isRunning`, `isOverflowing`, `hasStarted`, and `phase`. "Stop Session" is a secondary link-style button below the main row.
-- **SettingsMenu:** Collapsible settings panel. Three sections separated by dividers: (1) timer duration sliders (Focus 1–60m, Short Break 1–15m, Long Break 1–30m); (2) alarm volume slider (0–100, step 10) with a preview button; (3) alarm repetitions — five pill buttons (1–5) that control how many times the alarm fires at phase end. Multi-word labels stack vertically for consistent slider alignment.
+- **SettingsMenu:** Collapsible settings panel. Four sections separated by dividers: (1) timer duration sliders (Focus 1–60m, Short Break 1–15m, Long Break 1–30m); (2) alarm volume slider (0–100, step 10) with preview button; (3) alarm repetitions — five pill buttons (1–5); (4) overflow tick — On/Off pill toggle + volume slider (0–100, step 10) + preview button (visible only when enabled).
 - **HistoryModal:** Data management for past sessions — expandable per-session timelines (reuses `Timeline`), individual delete with confirmation overlay, clear all with confirmation overlay, export to JSON (full dump) or CSV (summary row per session).
 - **Modal:** "Session Interrupted" prompt with three actions: Restart Session, Take a Break, Close/Resume.
 
@@ -88,3 +94,4 @@ App (Root)
 | `settings` | `Settings` | Current settings object |
 | `setSettings` | `Dispatch<SetStateAction<Settings>>` | Setter passed from App.tsx |
 | `onPreviewSound` | `() => void` | Calls `previewSound()` in App.tsx — always one chime, stops when settings closes |
+| `onPreviewTick` | `() => void` | Calls `previewTick()` in App.tsx — plays one tick tone, stops when settings closes |

@@ -9,7 +9,7 @@
 
 ## ✅ Phase 2: Visualization & UX (v1.1 - v1.2)
 - [x] Visual Timeline bar showing work/break balance across a session.
-- [x] Keyboard shortcuts (Space: toggle, R: stop session, Esc: menu/interrupt).
+- [x] Keyboard shortcut: Space to toggle start/pause/next phase.
 - [x] Pulsating "Resume" button and glowing "Pause" state.
 - [x] Alarm sound with volume control and preview button.
 - [x] "Stop Session" confirmation dialog to prevent accidental data loss.
@@ -53,6 +53,13 @@
 - [x] Alarm now fires correctly when the browser tab is in the background.
 - [x] Added a `setTimeout`-based backup alarm alongside the RAF loop — `requestAnimationFrame` is throttled/suspended in background tabs, so the RAF-based sound trigger was never reached; `setTimeout` fires reliably for minute-scale delays.
 - [x] `playSound` made async to properly `await ctx.resume()` before scheduling Web Audio nodes, ensuring audio plays when the `AudioContext` was suspended.
+
+## ✅ Phase 9: Overflow Tick & Keyboard Cleanup (v1.9)
+- [x] Optional overflow tick sound — a soft C5 sine tone (250ms, whisper-quiet) that fires once per second while the overflow counter is running.
+- [x] Tick starts only after the alarm has fully finished: delay = `ceil((reps-1) × 2.8 + 2.65)` seconds, so it never overlaps the alarm regardless of repetition count.
+- [x] Overflow tick configurable in settings: On/Off toggle (pill buttons) + separate volume slider + preview button (same speaker icon as alarm preview, stops on panel close).
+- [x] Removed R and Esc keyboard shortcuts — only Space remains (toggle start/pause, or advance to next phase when overflowing).
+- [x] Keyboard hint below timer updated to show only `[Space]`.
 
 ## 🚀 Future Roadmap
 - [ ] **Analytics Dashboard:** Visual charts (D3/Recharts) showing productivity trends over weeks/months.
